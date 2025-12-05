@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Converter</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 20px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .view-controls {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .view-btn {
+            padding: 10px 20px;
+            margin: 0 5px;
+            border: 2px solid white;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .view-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .view-btn.active {
+            background: white;
+            color: #667eea;
+        }
+
+        .panels {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .panels.single-view {
+            grid-template-columns: 1fr;
+        }
+
+        .panel.hidden {
+            display: none;
+        }
+
+        .panel {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            max-height: 800px;
+        }
+
+        .panel-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .panel-title {
+            font-size: 1.3em;
+            font-weight: 600;
+        }
+
+        .upload-area {
+            border: 2px dashed rgba(255,255,255,0.5);
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: rgba(255,255,255,0.1);
+        }
+
+        .upload-area:hover {
+            background: rgba(255,255,255,0.2);
+            border-color: rgba(255,255,255,0.8);
+        }
+
+        .upload-area.dragover {
+            background: rgba(255,255,255,0.3);
+            border-color: white;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .control-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .font-size-input {
+            width: 70px;
+            padding: 8px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1em;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.2s;
+            background: rgba(255,255,255,0.9);
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .btn:hover {
+            background: white;
+            transform: translateY(-1px);
+        }
+
+        .content-area {
+            flex: 1;
+            overflow-y: scroll;
+            padding: 30px;
+            background: #f8f9fa;
+            height: 600px;
+        }
+
+        .content-area.empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+            font-size: 1.1em;
+        }
+
+        .document-content {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            line-height: 1.6;
+        }
+
+        .document-content h1, .document-content h2, .document-content h3,
+        .document-content h4, .document-content h5, .document-content h6 {
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+            color: #333;
+        }
+
+        .document-content p {
+            margin-bottom: 1em;
+        }
+
+        .document-content ul, .document-content ol {
+            margin-left: 2em;
+            margin-bottom: 1em;
+        }
+
+        .document-content table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 1em;
+        }
+
+        .document-content table td, .document-content table th {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+            font-size: 1.1em;
+        }
+
+        .error {
+            text-align: center;
+            padding: 40px;
+            color: #e74c3c;
+            font-size: 1.1em;
+        }
+
+        @media (max-width: 1024px) {
+            .panels {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📄 Document Converter</h1>
+        
+        <div class="view-controls">
+            <button class="view-btn active" id="viewBoth">Both Documents</button>
+            <button class="view-btn" id="viewDoc1">Document 1 Only</button>
+            <button class="view-btn" id="viewDoc2">Document 2 Only</button>
+        </div>
+        
+        <div class="panels" id="panels">
+            <!-- Left Panel -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">Document 1</div>
+                    <div class="upload-area" id="uploadArea1">
+                        <input type="file" id="fileInput1" class="file-input" accept=".pdf,.doc,.docx">
+                        <div>📁 Click or drag PDF/Word document here</div>
+                    </div>
+                    <div class="controls">
+                        <div class="control-group">
+                            <label class="control-label">Font Size:</label>
+                            <input type="number" id="fontSize1" class="font-size-input" value="16" min="8" max="72">
+                        </div>
+                        <button class="btn" id="clearBtn1">Clear</button>
+                    </div>
+                </div>
+                <div class="content-area empty" id="content1">
+                    <div>No document loaded</div>
+                </div>
+            </div>
+
+            <!-- Right Panel -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">Document 2</div>
+                    <div class="upload-area" id="uploadArea2">
+                        <input type="file" id="fileInput2" class="file-input" accept=".pdf,.doc,.docx">
+                        <div>📁 Click or drag PDF/Word document here</div>
+                    </div>
+                    <div class="controls">
+                        <div class="control-group">
+                            <label class="control-label">Font Size:</label>
+                            <input type="number" id="fontSize2" class="font-size-input" value="16" min="8" max="72">
+                        </div>
+                        <button class="btn" id="clearBtn2">Clear</button>
+                    </div>
+                </div>
+                <div class="content-area empty" id="content2">
+                    <div>No document loaded</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        // View control buttons
+        const viewBothBtn = document.getElementById('viewBoth');
+        const viewDoc1Btn = document.getElementById('viewDoc1');
+        const viewDoc2Btn = document.getElementById('viewDoc2');
+        const panelsDiv = document.getElementById('panels');
+        const panel1 = document.querySelector('.panel:nth-child(1)');
+        const panel2 = document.querySelector('.panel:nth-child(2)');
+
+        viewBothBtn.addEventListener('click', () => {
+            panelsDiv.classList.remove('single-view');
+            panel1.classList.remove('hidden');
+            panel2.classList.remove('hidden');
+            setActiveButton(viewBothBtn);
+        });
+
+        viewDoc1Btn.addEventListener('click', () => {
+            panelsDiv.classList.add('single-view');
+            panel1.classList.remove('hidden');
+            panel2.classList.add('hidden');
+            setActiveButton(viewDoc1Btn);
+        });
+
+        viewDoc2Btn.addEventListener('click', () => {
+            panelsDiv.classList.add('single-view');
+            panel1.classList.add('hidden');
+            panel2.classList.remove('hidden');
+            setActiveButton(viewDoc2Btn);
+        });
+
+        function setActiveButton(activeBtn) {
+            [viewBothBtn, viewDoc1Btn, viewDoc2Btn].forEach(btn => {
+                btn.classList.remove('active');
+            });
+            activeBtn.classList.add('active');
+        }
+
+        function setupPanel(panelNum) {
+            const uploadArea = document.getElementById(`uploadArea${panelNum}`);
+            const fileInput = document.getElementById(`fileInput${panelNum}`);
+            const content = document.getElementById(`content${panelNum}`);
+            const fontSizeInput = document.getElementById(`fontSize${panelNum}`);
+            const clearBtn = document.getElementById(`clearBtn${panelNum}`);
+
+            uploadArea.addEventListener('click', () => fileInput.click());
+
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('dragover');
+            });
+
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                const file = e.dataTransfer.files[0];
+                if (file) handleFile(file, content, fontSizeInput);
+            });
+
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) handleFile(file, content, fontSizeInput);
+            });
+
+            fontSizeInput.addEventListener('input', () => {
+                const docContent = content.querySelector('.document-content');
+                if (docContent) {
+                    docContent.style.fontSize = `${fontSizeInput.value}px`;
+                }
+            });
+
+            clearBtn.addEventListener('click', () => {
+                content.innerHTML = '<div>No document loaded</div>';
+                content.classList.add('empty');
+                fileInput.value = '';
+            });
+        }
+
+        async function handleFile(file, contentDiv, fontSizeInput) {
+            const fileName = file.name.toLowerCase();
+            
+            contentDiv.classList.remove('empty');
+            contentDiv.innerHTML = '<div class="loading">⏳ Converting document...</div>';
+
+            try {
+                let html = '';
+                
+                if (fileName.endsWith('.pdf')) {
+                    html = await convertPDF(file);
+                } else if (fileName.endsWith('.docx') || fileName.endsWith('.doc')) {
+                    html = await convertWord(file);
+                } else {
+                    throw new Error('Unsupported file format');
+                }
+
+                contentDiv.innerHTML = `<div class="document-content">${html}</div>`;
+                const docContent = contentDiv.querySelector('.document-content');
+                docContent.style.fontSize = `${fontSizeInput.value}px`;
+            } catch (error) {
+                contentDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        async function convertPDF(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            let html = '';
+
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                
+                let pageText = '';
+                let lastY = null;
+                
+                textContent.items.forEach((item) => {
+                    const y = item.transform[5];
+                    
+                    if (lastY !== null && Math.abs(y - lastY) > 10) {
+                        pageText += '<br>';
+                    }
+                    
+                    pageText += item.str + ' ';
+                    lastY = y;
+                });
+                
+                html += `<div style="margin-bottom: 2em;">
+                    <h3>Page ${i}</h3>
+                    <p>${pageText}</p>
+                </div>`;
+            }
+
+            return html || '<p>No text content found in PDF</p>';
+        }
+
+        async function convertWord(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const result = await mammoth.convertToHtml({ arrayBuffer });
+            return result.value || '<p>No content found in document</p>';
+        }
+
+        setupPanel(1);
+        setupPanel(2);
+    </script>
+</body>
+</html>
