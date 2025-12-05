@@ -17,7 +17,7 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            padding: 20px;
+            padding: 12px;
         }
 
         .container {
@@ -28,25 +28,25 @@
         h1 {
             text-align: center;
             color: white;
-            margin-bottom: 20px;
-            font-size: 2.5em;
+            margin-bottom: 15px;
+            font-size: 1.8em;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
         }
 
         .view-controls {
             text-align: center;
-            margin-bottom: 20px;
+            margin-bottom: 12px;
         }
 
         .view-btn {
-            padding: 10px 20px;
-            margin: 0 5px;
+            padding: 6px 14px;
+            margin: 0 4px;
             border: 2px solid white;
             background: rgba(255,255,255,0.2);
             color: white;
-            border-radius: 8px;
+            border-radius: 6px;
             cursor: pointer;
-            font-size: 1em;
+            font-size: 0.85em;
             font-weight: 600;
             transition: all 0.3s;
         }
@@ -63,8 +63,8 @@
         .panels {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-bottom: 20px;
+            gap: 12px;
+            margin-bottom: 12px;
         }
 
         .panels.single-view {
@@ -88,25 +88,26 @@
         .panel-header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 20px;
+            padding: 12px;
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 8px;
         }
 
         .panel-title {
-            font-size: 1.3em;
+            font-size: 1em;
             font-weight: 600;
         }
 
         .upload-area {
             border: 2px dashed rgba(255,255,255,0.5);
-            border-radius: 8px;
-            padding: 20px;
+            border-radius: 6px;
+            padding: 10px;
             text-align: center;
             cursor: pointer;
             transition: all 0.3s;
             background: rgba(255,255,255,0.1);
+            font-size: 0.85em;
         }
 
         .upload-area:hover {
@@ -137,22 +138,116 @@
         }
 
         .control-label {
-            font-size: 0.9em;
+            font-size: 0.75em;
             opacity: 0.9;
         }
 
         .font-adjust-btn {
-            width: 36px;
-            height: 36px;
+            width: 30px;
+            height: 30px;
             padding: 0;
             border: 2px solid rgba(255,255,255,0.5);
-            border-radius: 6px;
+            border-radius: 4px;
             background: rgba(255,255,255,0.2);
             color: white;
-            font-size: 1.2em;
+            font-size: 1em;
             font-weight: bold;
             cursor: pointer;
             transition: all 0.2s;
+        }
+
+        .page-nav {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .page-nav-btn {
+            width: 30px;
+            height: 30px;
+            padding: 0;
+            border: 2px solid rgba(255,255,255,0.5);
+            border-radius: 4px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            font-size: 0.9em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .page-nav-btn:hover {
+            background: rgba(255,255,255,0.3);
+            border-color: rgba(255,255,255,0.8);
+        }
+
+        .page-nav-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .page-select {
+            padding: 4px 8px;
+            border: 2px solid rgba(255,255,255,0.5);
+            border-radius: 4px;
+            background: rgba(255,255,255,0.9);
+            color: #667eea;
+            font-size: 0.85em;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .page-info {
+            background: rgba(255,255,255,0.9);
+            color: #667eea;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 4px;
+            flex: 1;
+            max-width: 250px;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 4px 8px;
+            border: 2px solid rgba(255,255,255,0.5);
+            border-radius: 4px;
+            background: rgba(255,255,255,0.9);
+            color: #333;
+            font-size: 0.85em;
+        }
+
+        .search-input::placeholder {
+            color: #999;
+        }
+
+        .search-btn {
+            width: 30px;
+            height: 30px;
+            padding: 0;
+            border: 2px solid rgba(255,255,255,0.5);
+            border-radius: 4px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .search-btn:hover {
+            background: rgba(255,255,255,0.3);
+            border-color: rgba(255,255,255,0.8);
+        }
+
+        .highlight {
+            background-color: yellow;
+            font-weight: bold;
         }
 
         .font-adjust-btn:hover {
@@ -163,19 +258,20 @@
         .font-size-display {
             background: rgba(255,255,255,0.9);
             color: #667eea;
-            padding: 8px 12px;
-            border-radius: 6px;
+            padding: 4px 8px;
+            border-radius: 4px;
             font-weight: 600;
-            min-width: 50px;
+            font-size: 0.85em;
+            min-width: 40px;
             text-align: center;
         }
 
         .btn {
-            padding: 8px 16px;
+            padding: 4px 10px;
             border: none;
-            border-radius: 6px;
+            border-radius: 4px;
             cursor: pointer;
-            font-size: 0.9em;
+            font-size: 0.8em;
             transition: all 0.2s;
             background: rgba(255,255,255,0.9);
             color: #667eea;
@@ -190,9 +286,9 @@
         .content-area {
             flex: 1;
             overflow-y: scroll;
-            padding: 30px;
+            padding: 20px;
             background: #f8f9fa;
-            height: 600px;
+            height: calc(100vh - 180px);
         }
 
         .content-area.empty {
@@ -205,7 +301,7 @@
 
         .document-content {
             background: white;
-            padding: 40px;
+            padding: 25px;
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             line-height: 1.6;
@@ -262,13 +358,13 @@
 <body>
     <div class="container">
         <h1>📄 Document Converter</h1>
-        
+
         <div class="view-controls">
             <button class="view-btn active" id="viewBoth">Both Documents</button>
             <button class="view-btn" id="viewDoc1">Document 1 Only</button>
             <button class="view-btn" id="viewDoc2">Document 2 Only</button>
         </div>
-        
+
         <div class="panels" id="panels">
             <!-- Left Panel -->
             <div class="panel">
@@ -279,8 +375,20 @@
                         <div>📁 Click or drag PDF/Word document here</div>
                     </div>
                     <div class="controls">
+                        <div class="page-nav" id="pageNav1" style="display: none;">
+                            <button class="page-nav-btn" id="firstPage1" title="First page">⏮</button>
+                            <button class="page-nav-btn" id="prevPage1" title="Previous page">◀</button>
+                            <select class="page-select" id="pageSelect1"></select>
+                            <button class="page-nav-btn" id="nextPage1" title="Next page">▶</button>
+                            <button class="page-nav-btn" id="lastPage1" title="Last page">⏭</button>
+                        </div>
+                        <div class="search-box">
+                            <input type="text" class="search-input" id="searchInput1" placeholder="Search...">
+                            <button class="search-btn" id="searchPrev1" title="Previous match">↑</button>
+                            <button class="search-btn" id="searchNext1" title="Next match">↓</button>
+                        </div>
                         <div class="control-group">
-                            <label class="control-label">Font Size:</label>
+                            <label class="control-label">Font:</label>
                             <button class="font-adjust-btn" id="decreaseFont1">−</button>
                             <div class="font-size-display" id="fontDisplay1">+0</div>
                             <button class="font-adjust-btn" id="increaseFont1">+</button>
@@ -302,8 +410,20 @@
                         <div>📁 Click or drag PDF/Word document here</div>
                     </div>
                     <div class="controls">
+                        <div class="page-nav" id="pageNav2" style="display: none;">
+                            <button class="page-nav-btn" id="firstPage2" title="First page">⏮</button>
+                            <button class="page-nav-btn" id="prevPage2" title="Previous page">◀</button>
+                            <select class="page-select" id="pageSelect2"></select>
+                            <button class="page-nav-btn" id="nextPage2" title="Next page">▶</button>
+                            <button class="page-nav-btn" id="lastPage2" title="Last page">⏭</button>
+                        </div>
+                        <div class="search-box">
+                            <input type="text" class="search-input" id="searchInput2" placeholder="Search...">
+                            <button class="search-btn" id="searchPrev2" title="Previous match">↑</button>
+                            <button class="search-btn" id="searchNext2" title="Next match">↓</button>
+                        </div>
                         <div class="control-group">
-                            <label class="control-label">Font Size:</label>
+                            <label class="control-label">Font:</label>
                             <button class="font-adjust-btn" id="decreaseFont2">−</button>
                             <div class="font-size-display" id="fontDisplay2">+0</div>
                             <button class="font-adjust-btn" id="increaseFont2">+</button>
@@ -365,8 +485,227 @@
             const decreaseBtn = document.getElementById(`decreaseFont${panelNum}`);
             const fontDisplay = document.getElementById(`fontDisplay${panelNum}`);
             const clearBtn = document.getElementById(`clearBtn${panelNum}`);
-            
+
+            // Page navigation elements
+            const pageNav = document.getElementById(`pageNav${panelNum}`);
+            const firstPageBtn = document.getElementById(`firstPage${panelNum}`);
+            const prevPageBtn = document.getElementById(`prevPage${panelNum}`);
+            const pageSelect = document.getElementById(`pageSelect${panelNum}`);
+            const nextPageBtn = document.getElementById(`nextPage${panelNum}`);
+            const lastPageBtn = document.getElementById(`lastPage${panelNum}`);
+
+            // Search elements
+            const searchInput = document.getElementById(`searchInput${panelNum}`);
+            const searchPrevBtn = document.getElementById(`searchPrev${panelNum}`);
+            const searchNextBtn = document.getElementById(`searchNext${panelNum}`);
+
             let fontAdjustment = 0;
+            let pdfPages = [];
+            let currentPage = 0;
+            let searchMatches = [];
+            let currentMatchIndex = -1;
+
+            // Page navigation handlers
+            firstPageBtn.addEventListener('click', () => goToPage(0));
+            prevPageBtn.addEventListener('click', () => goToPage(currentPage - 1));
+            nextPageBtn.addEventListener('click', () => goToPage(currentPage + 1));
+            lastPageBtn.addEventListener('click', () => goToPage(pdfPages.length - 1));
+            pageSelect.addEventListener('change', (e) => goToPage(parseInt(e.target.value)));
+
+            function goToPage(pageIndex) {
+                if (pageIndex < 0 || pageIndex >= pdfPages.length) return;
+                currentPage = pageIndex;
+
+                // Scroll to the page
+                const pageElement = content.querySelector(`#page${panelNum}-${pageIndex}`);
+                if (pageElement) {
+                    pageElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+
+                updatePageNav();
+
+                // Re-run search to prioritize matches in new page
+                if (searchInput.value.trim().length > 0) {
+                    performSearch();
+                }
+            }
+
+            function updatePageNav() {
+                if (pdfPages.length === 0) return;
+                pageSelect.value = currentPage;
+                firstPageBtn.disabled = currentPage === 0;
+                prevPageBtn.disabled = currentPage === 0;
+                nextPageBtn.disabled = currentPage === pdfPages.length - 1;
+                lastPageBtn.disabled = currentPage === pdfPages.length - 1;
+            }
+
+            // Search handlers
+            searchInput.addEventListener('input', performSearch);
+            searchPrevBtn.addEventListener('click', () => navigateMatch(-1));
+            searchNextBtn.addEventListener('click', () => navigateMatch(1));
+
+            function performSearch() {
+                const searchTerm = searchInput.value.trim();
+                const docContent = content.querySelector('.document-content');
+
+                if (!docContent) return;
+
+                // Remove previous highlights
+                const highlighted = docContent.querySelectorAll('.highlight');
+                highlighted.forEach(el => {
+                    const parent = el.parentNode;
+                    const textNode = document.createTextNode(el.textContent);
+                    parent.replaceChild(textNode, el);
+                });
+                // Normalize to merge adjacent text nodes
+                docContent.normalize();
+
+                searchMatches = [];
+                currentMatchIndex = -1;
+
+                if (searchTerm.length === 0) return;
+
+                // Escape regex special characters
+                const escapedTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regex = new RegExp(escapedTerm, 'gi');
+
+                // Find and highlight all matches
+                const walker = document.createTreeWalker(
+                    docContent,
+                    NodeFilter.SHOW_TEXT,
+                    null,
+                    false
+                );
+
+                const nodesToProcess = [];
+                let node;
+                while (node = walker.nextNode()) {
+                    const text = node.textContent;
+                    const matches = [];
+                    let match;
+                    regex.lastIndex = 0;
+                    while ((match = regex.exec(text)) !== null) {
+                        matches.push({ index: match.index, length: searchTerm.length });
+                    }
+                    if (matches.length > 0) {
+                        nodesToProcess.push({ node, matches });
+                    }
+                }
+
+                // Apply highlights (process in reverse to maintain indices)
+                nodesToProcess.forEach(({ node, matches }) => {
+                    const parent = node.parentNode;
+                    if (!parent) return;
+
+                    const text = node.textContent;
+                    const fragments = [];
+                    let lastIndex = 0;
+
+                    matches.forEach(({ index, length }) => {
+                        // Add text before match
+                        if (index > lastIndex) {
+                            fragments.push(document.createTextNode(text.substring(lastIndex, index)));
+                        }
+                        // Add highlighted match
+                        const span = document.createElement('span');
+                        span.className = 'highlight';
+                        span.textContent = text.substring(index, index + length);
+                        fragments.push(span);
+                        searchMatches.push(span);
+                        lastIndex = index + length;
+                    });
+
+                    // Add remaining text
+                    if (lastIndex < text.length) {
+                        fragments.push(document.createTextNode(text.substring(lastIndex)));
+                    }
+
+                    // Replace node with fragments
+                    fragments.forEach(frag => parent.insertBefore(frag, node));
+                    parent.removeChild(node);
+                });
+
+                if (searchMatches.length > 0) {
+                    // Find the first match in or after the current page
+                    const currentPageElement = pdfPages.length > 0 ?
+                        content.querySelector(`#page${panelNum}-${currentPage}`) : null;
+
+                    if (currentPageElement) {
+                        // Find matches within current page
+                        const matchesInCurrentPage = searchMatches.filter(match =>
+                            currentPageElement.contains(match)
+                        );
+
+                        if (matchesInCurrentPage.length > 0) {
+                            // Start with first match in current page
+                            currentMatchIndex = searchMatches.indexOf(matchesInCurrentPage[0]);
+                        } else {
+                            // Find first match after current page
+                            let foundAfter = false;
+                            for (let i = 0; i < searchMatches.length; i++) {
+                                const matchPage = getPageForElement(searchMatches[i]);
+                                if (matchPage > currentPage) {
+                                    currentMatchIndex = i;
+                                    foundAfter = true;
+                                    break;
+                                }
+                            }
+                            // If no match after, start from beginning
+                            if (!foundAfter) {
+                                currentMatchIndex = 0;
+                            }
+                        }
+                    } else {
+                        // For non-PDF documents, find first match in viewport or start from beginning
+                        currentMatchIndex = findClosestMatchToViewport();
+                    }
+
+                    scrollToMatch();
+                }
+            }
+
+            function getPageForElement(element) {
+                // Find which page contains this element
+                for (let i = 0; i < pdfPages.length; i++) {
+                    const pageElement = content.querySelector(`#page${panelNum}-${i}`);
+                    if (pageElement && pageElement.contains(element)) {
+                        return i;
+                    }
+                }
+                return -1;
+            }
+
+            function findClosestMatchToViewport() {
+                const scrollTop = content.scrollTop;
+                const viewportMiddle = scrollTop + content.clientHeight / 2;
+
+                let closestIndex = 0;
+                let closestDistance = Infinity;
+
+                searchMatches.forEach((match, index) => {
+                    const rect = match.getBoundingClientRect();
+                    const contentRect = content.getBoundingClientRect();
+                    const matchTop = rect.top - contentRect.top + scrollTop;
+                    const distance = Math.abs(matchTop - viewportMiddle);
+
+                    if (distance < closestDistance) {
+                        closestDistance = distance;
+                        closestIndex = index;
+                    }
+                });
+
+                return closestIndex;
+            }            function navigateMatch(direction) {
+                if (searchMatches.length === 0) return;
+                currentMatchIndex = (currentMatchIndex + direction + searchMatches.length) % searchMatches.length;
+                scrollToMatch();
+            }
+
+            function scrollToMatch() {
+                if (currentMatchIndex >= 0 && currentMatchIndex < searchMatches.length) {
+                    searchMatches[currentMatchIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
 
             uploadArea.addEventListener('click', () => fileInput.click());
 
@@ -383,12 +722,12 @@
                 e.preventDefault();
                 uploadArea.classList.remove('dragover');
                 const file = e.dataTransfer.files[0];
-                if (file) handleFile(file, content, fontAdjustment);
+                if (file) handleFile(file, content, fontAdjustment, panelNum);
             });
 
             fileInput.addEventListener('change', (e) => {
                 const file = e.target.files[0];
-                if (file) handleFile(file, content, fontAdjustment);
+                if (file) handleFile(file, content, fontAdjustment, panelNum);
             });
 
             increaseBtn.addEventListener('click', () => {
@@ -409,34 +748,72 @@
                 fileInput.value = '';
                 fontAdjustment = 0;
                 fontDisplay.textContent = '+0';
+                pdfPages = [];
+                currentPage = 0;
+                pageNav.style.display = 'none';
             });
+
+            // Return API for external access
+            return {
+                setAllPages: (pages, fullHtml) => {
+                    pdfPages = pages;
+                    currentPage = 0;
+
+                    // Display all pages with IDs for jumping
+                    let allPagesHtml = '<div class="document-content">';
+                    pages.forEach((pageHtml, i) => {
+                        allPagesHtml += `<div id="page${panelNum}-${i}" class="pdf-page" style="margin-bottom: 2em;">${pageHtml}</div>`;
+                    });
+                    allPagesHtml += '</div>';
+
+                    content.innerHTML = allPagesHtml;
+
+                    // Setup page selector
+                    pageSelect.innerHTML = '';
+                    pages.forEach((_, i) => {
+                        const option = document.createElement('option');
+                        option.value = i;
+                        option.textContent = `Page ${i + 1}`;
+                        pageSelect.appendChild(option);
+                    });
+
+                    pageNav.style.display = 'flex';
+                    updatePageNav();
+                    applyFontAdjustment(content, fontAdjustment);
+                },
+                setContent: (html) => {
+                    content.innerHTML = `<div class="document-content">${html}</div>`;
+                    applyFontAdjustment(content, fontAdjustment);
+                    pageNav.style.display = 'none';
+                    pdfPages = [];
+                }
+            };
         }
 
-        async function handleFile(file, contentDiv, fontAdjustment) {
+        async function handleFile(file, contentDiv, fontAdjustment, panelNum) {
             const fileName = file.name.toLowerCase();
-            
+
             contentDiv.classList.remove('empty');
             contentDiv.innerHTML = '<div class="loading">⏳ Converting document...</div>';
 
             try {
-                let html = '';
-                
                 if (fileName.endsWith('.pdf')) {
-                    html = await convertPDF(file);
+                    const result = await convertPDF(file);
+                    const panelApi = window[`panel${panelNum}Api`];
+                    panelApi.setAllPages(result.pages, result.html);
                 } else if (fileName.endsWith('.docx') || fileName.endsWith('.doc')) {
-                    html = await convertWord(file);
+                    const result = await convertWord(file);
+                    const panelApi = window[`panel${panelNum}Api`];
+                    panelApi.setAllPages(result.pages, result.html);
                 } else {
                     throw new Error('Unsupported file format');
                 }
 
-                contentDiv.innerHTML = `<div class="document-content">${html}</div>`;
                 applyFontAdjustment(contentDiv, fontAdjustment);
             } catch (error) {
                 contentDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
             }
-        }
-
-        function applyFontAdjustment(contentDiv, adjustment) {
+        }        function applyFontAdjustment(contentDiv, adjustment) {
             const docContent = contentDiv.querySelector('.document-content');
             if (!docContent) return;
 
@@ -445,13 +822,13 @@
             allElements.forEach(element => {
                 const computedStyle = window.getComputedStyle(element);
                 const currentSize = parseFloat(computedStyle.fontSize);
-                
+
                 if (currentSize) {
                     // Store original size on first adjustment
                     if (!element.dataset.originalSize) {
                         element.dataset.originalSize = currentSize;
                     }
-                    
+
                     const originalSize = parseFloat(element.dataset.originalSize);
                     const newSize = originalSize + adjustment;
                     element.style.fontSize = `${Math.max(6, newSize)}px`;
@@ -463,99 +840,545 @@
             const arrayBuffer = await file.arrayBuffer();
             const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
             let html = '';
+            const pages = [];
 
             for (let i = 1; i <= pdf.numPages; i++) {
                 const page = await pdf.getPage(i);
+                const viewport = page.getViewport({ scale: 1.5 });
+                const pageHeight = viewport.height;
+
+                let pageHtml = `<div style="margin-bottom: 2em;">`;
+                pageHtml += `<div style="font-size: 10px; color: #999; margin-bottom: 1em; border-bottom: 1px solid #ddd; padding-bottom: 0.5em;">Page ${i}</div>`;
+
+                // Get all content items (text and images) with their positions
                 const textContent = await page.getTextContent();
-                
-                html += `<div style="margin-bottom: 2em; page-break-after: always;">`;
-                html += `<div style="font-size: 10px; color: #999; margin-bottom: 1em; border-bottom: 1px solid #ddd; padding-bottom: 0.5em;">Page ${i}</div>`;
-                
-                let currentParagraph = [];
-                let lastY = null;
-                let lastHeight = null;
-                
-                textContent.items.forEach((item, index) => {
-                    const y = item.transform[5];
-                    const height = item.height || 12;
-                    const fontName = item.fontName || '';
-                    const text = item.str;
-                    
-                    // Detect if it's a new line (significant Y position change)
-                    const isNewLine = lastY !== null && Math.abs(y - lastY) > height * 0.5;
-                    
-                    // Detect if it's a heading (larger font size)
-                    const isLargerFont = lastHeight !== null && height > lastHeight * 1.3;
-                    
-                    // Check if font appears bold (common bold font names)
-                    const isBold = fontName.toLowerCase().includes('bold') || 
-                                   fontName.toLowerCase().includes('black') ||
-                                   fontName.toLowerCase().includes('heavy');
-                    
-                    // Check if font appears italic
-                    const isItalic = fontName.toLowerCase().includes('italic') || 
-                                     fontName.toLowerCase().includes('oblique');
-                    
-                    if (isNewLine && currentParagraph.length > 0) {
-                        // Output current paragraph
-                        html += `<p style="margin-bottom: 0.8em; line-height: 1.5;">${currentParagraph.join('')}</p>`;
-                        currentParagraph = [];
+
+                // SIMPLE APPROACH: Render entire page, extract images separately,
+                // then insert images at gaps in text based on Y-coordinate analysis
+
+                // Extract images with their data
+                const imageItems = [];
+                const ops = await page.getOperatorList();
+
+                for (let j = 0; j < ops.fnArray.length; j++) {
+                    if (ops.fnArray[j] === pdfjsLib.OPS.paintImageXObject ||
+                        ops.fnArray[j] === pdfjsLib.OPS.paintInlineImageXObject ||
+                        ops.fnArray[j] === pdfjsLib.OPS.paintJpegXObject ||
+                        ops.fnArray[j] === pdfjsLib.OPS.paintFormXObjectBegin) {
+
+                        const imageName = ops.argsArray[j][0];
+
+                        try {
+                            const img = await new Promise((resolve) => {
+                                page.commonObjs.get(imageName, resolve);
+                                page.objs.get(imageName, resolve);
+                                setTimeout(() => resolve(null), 100);
+                            });
+
+                            if (img) {
+                                const canvas = document.createElement('canvas');
+                                const ctx = canvas.getContext('2d');
+
+                                let width = img.width || 200;
+                                let height = img.height || 200;
+
+                                canvas.width = width;
+                                canvas.height = height;
+
+                                if (img instanceof HTMLImageElement) {
+                                    ctx.drawImage(img, 0, 0);
+                                } else if (img instanceof HTMLCanvasElement) {
+                                    ctx.drawImage(img, 0, 0);
+                                } else if (img.bitmap) {
+                                    ctx.drawImage(img.bitmap, 0, 0);
+                                } else if (img.data) {
+                                    const imgData = ctx.createImageData(img.width, img.height);
+                                    const data = img.data;
+
+                                    if (img.kind === 1) {
+                                        for (let k = 0; k < img.width * img.height; k++) {
+                                            const gray = data[k];
+                                            imgData.data[k * 4] = gray;
+                                            imgData.data[k * 4 + 1] = gray;
+                                            imgData.data[k * 4 + 2] = gray;
+                                            imgData.data[k * 4 + 3] = 255;
+                                        }
+                                    } else {
+                                        const numComponents = data.length / (img.width * img.height);
+                                        for (let k = 0; k < img.width * img.height; k++) {
+                                            if (numComponents === 3) {
+                                                imgData.data[k * 4] = data[k * 3];
+                                                imgData.data[k * 4 + 1] = data[k * 3 + 1];
+                                                imgData.data[k * 4 + 2] = data[k * 3 + 2];
+                                                imgData.data[k * 4 + 3] = 255;
+                                            } else if (numComponents === 4) {
+                                                imgData.data[k * 4] = data[k * 4];
+                                                imgData.data[k * 4 + 1] = data[k * 4 + 1];
+                                                imgData.data[k * 4 + 2] = data[k * 4 + 2];
+                                                imgData.data[k * 4 + 3] = data[k * 4 + 3];
+                                            }
+                                        }
+                                    }
+                                    ctx.putImageData(imgData, 0, 0);
+                                }
+
+                                const imgDataUrl = canvas.toDataURL('image/png');
+                                // Filter out tiny images (likely decorative or artifacts)
+                                // Keep images that are at least 50x50 pixels
+                                if (imgDataUrl && imgDataUrl.length > 100 && width >= 50 && height >= 50) {
+                                    imageItems.push({ dataUrl: imgDataUrl });
+                                }
+                            }
+                        } catch (err) {
+                            console.warn('Could not extract image:', err);
+                        }
                     }
-                    
-                    // Build styled span for this text
-                    let styles = [`font-size: ${Math.round(height)}px`];
-                    let tag = 'span';
-                    
-                    if (height > 16) {
-                        // Likely a heading
-                        if (height > 20) {
-                            tag = 'h2';
-                            styles.push('font-weight: bold', 'margin: 1em 0 0.5em 0', 'display: block');
-                        } else {
-                            tag = 'h3';
-                            styles.push('font-weight: bold', 'margin: 0.8em 0 0.4em 0', 'display: block');
+                }
+
+                console.log('Extracted', imageItems.length, 'images from page', i);
+
+                // Build content using text coordinates and detect gaps for images
+
+                // ENHANCED APPROACH: Detect columns, tables, and complex layouts
+
+                // Analyze page width to detect columns
+                const pageWidth = viewport.width;
+                const leftMargin = Math.min(...textContent.items.map(it => it.transform[4]));
+                const rightMargin = Math.max(...textContent.items.map(it => it.transform[4] + (it.width || 0)));
+                const contentWidth = rightMargin - leftMargin;
+
+                // Sort text items by Y position first, then X (for reading order)
+                const textItems = textContent.items.map(item => ({
+                    x: item.transform[4],
+                    y: item.transform[5],  // baseline Y
+                    pdfTop: item.transform[5] + (item.height || 12),
+                    width: item.width || 0,
+                    height: item.height || 12,
+                    text: item.str,
+                    fontName: item.fontName || ''
+                }));
+
+                // Group text into horizontal rows/lines first
+                const lines = [];
+                let currentLine = [];
+                let lastY = null;
+
+                textItems.forEach(item => {
+                    const tolerance = (item.height || 12) * 0.3;
+
+                    if (lastY === null || Math.abs(item.y - lastY) > tolerance) {
+                        // New line
+                        if (currentLine.length > 0) {
+                            currentLine.sort((a, b) => a.x - b.x);  // Sort left to right
+                            lines.push({
+                                items: currentLine,
+                                y: currentLine[0].y,
+                                pdfTop: Math.max(...currentLine.map(it => it.pdfTop)),
+                                avgHeight: currentLine.reduce((sum, it) => sum + it.height, 0) / currentLine.length,
+                                minX: Math.min(...currentLine.map(it => it.x)),
+                                maxX: Math.max(...currentLine.map(it => it.x + it.width))
+                            });
+                            currentLine = [];
+                        }
+                    }
+
+                    currentLine.push(item);
+                    lastY = item.y;
+                });
+
+                // Add last line
+                if (currentLine.length > 0) {
+                    currentLine.sort((a, b) => a.x - b.x);
+                    lines.push({
+                        items: currentLine,
+                        y: currentLine[0].y,
+                        pdfTop: Math.max(...currentLine.map(it => it.pdfTop)),
+                        avgHeight: currentLine.reduce((sum, it) => sum + it.height, 0) / currentLine.length,
+                        minX: Math.min(...currentLine.map(it => it.x)),
+                        maxX: Math.max(...currentLine.map(it => it.x + it.width))
+                    });
+                }
+
+                // Sort lines top to bottom
+                lines.sort((a, b) => b.pdfTop - a.pdfTop);
+
+                // Detect multi-column layout
+                const xPositions = lines.map(l => l.minX);
+                const uniqueXStarts = [...new Set(xPositions.map(x => Math.round(x / 10) * 10))].sort((a, b) => a - b);
+                const hasColumns = uniqueXStarts.length > 1 && contentWidth > 400;
+
+                if (hasColumns) {
+                    console.log('Multi-column layout detected. Column starts:', uniqueXStarts);
+                }
+
+                // Detect large gaps (for images)
+                const gaps = [];
+                for (let k = 0; k < lines.length - 1; k++) {
+                    const currentBottom = lines[k].y;
+                    const nextTop = lines[k + 1].pdfTop;
+                    const gapSize = currentBottom - nextTop;
+                    const avgFontSize = (lines[k].avgHeight + lines[k + 1].avgHeight) / 2;
+
+                    if (gapSize > avgFontSize * 3) {
+                        gaps.push({ afterIndex: k, gapSize: gapSize });
+                        console.log(`Large gap detected: ${gapSize.toFixed(1)}px after line ${k}`);
+                    }
+                }
+
+                // Detect tables (aligned columns of text with consistent spacing)
+                const detectTable = (startIdx, endIdx) => {
+                    const tableLines = lines.slice(startIdx, endIdx + 1);
+                    if (tableLines.length < 2) return null;
+
+                    // Check if lines have multiple distinct X positions (columns)
+                    const xGroups = {};
+                    tableLines.forEach(line => {
+                        line.items.forEach(item => {
+                            const xKey = Math.round(item.x / 15) * 15;  // Group by ~15px
+                            if (!xGroups[xKey]) xGroups[xKey] = [];
+                            xGroups[xKey].push(item);
+                        });
+                    });
+
+                    const numColumns = Object.keys(xGroups).length;
+                    // More strict criteria: need at least 3 rows and 2+ columns
+                    // Also check that most rows have items in multiple columns
+                    const rowsWithMultiCols = tableLines.filter(line => {
+                        const positions = new Set(line.items.map(it => Math.round(it.x / 15) * 15));
+                        return positions.size >= 2;
+                    }).length;
+
+                    const isConsistent = rowsWithMultiCols >= tableLines.length * 0.7;
+
+                    if (numColumns >= 2 && tableLines.length >= 3 && isConsistent) {
+                        return {
+                            isTable: true,
+                            startIdx: startIdx,
+                            endIdx: endIdx,
+                            numColumns: numColumns,
+                            columnXs: Object.keys(xGroups).map(Number).sort((a, b) => a - b)
+                        };
+                    }
+                    return null;
+                };
+
+                // Identify table regions
+                const tableRegions = [];
+                let potentialTableStart = null;
+
+                for (let k = 0; k < lines.length; k++) {
+                    const line = lines[k];
+                    const hasMultipleItems = line.items.length >= 3;
+                    const avgItemLength = line.items.reduce((sum, it) => sum + it.text.length, 0) / line.items.length;
+                    const isShortLine = avgItemLength < 20;
+
+                    if (hasMultipleItems && isShortLine) {
+                        if (potentialTableStart === null) {
+                            potentialTableStart = k;
                         }
                     } else {
-                        if (isBold) styles.push('font-weight: bold');
-                        if (isItalic) styles.push('font-style: italic');
+                        if (potentialTableStart !== null && k - potentialTableStart >= 3) {
+                            const table = detectTable(potentialTableStart, k - 1);
+                            if (table) {
+                                tableRegions.push(table);
+                            }
+                        }
+                        potentialTableStart = null;
                     }
-                    
-                    const styledText = `<${tag} style="${styles.join('; ')}">${text}</${tag}>`;
-                    
-                    if (tag === 'h2' || tag === 'h3') {
-                        // Headings are block elements
+                }
+
+                console.log('Detected', tableRegions.length, 'potential table(s)');
+
+                // Build content with images inserted at gaps
+                let imageIndex = 0;
+                const content = [];
+
+                for (let k = 0; k < lines.length; k++) {
+                    content.push({ type: 'line', line: lines[k], lineIndex: k });
+
+                    const gapHere = gaps.find(g => g.afterIndex === k);
+                    if (gapHere && imageIndex < imageItems.length) {
+                        content.push({ type: 'image', dataUrl: imageItems[imageIndex].dataUrl });
+                        imageIndex++;
+                    }
+                }
+
+                // Add remaining images
+                while (imageIndex < imageItems.length) {
+                    content.push({ type: 'image', dataUrl: imageItems[imageIndex].dataUrl });
+                    imageIndex++;
+                }
+
+                // Group lines into blocks (paragraphs, tables, headings)
+                const blocks = [];
+                let currentParagraph = [];
+                let lastLineY = null;
+
+                content.forEach((item, idx) => {
+                    if (item.type === 'image') {
+                        // Flush current paragraph
                         if (currentParagraph.length > 0) {
-                            html += `<p style="margin-bottom: 0.8em; line-height: 1.5;">${currentParagraph.join('')}</p>`;
+                            blocks.push({ type: 'paragraph', lines: currentParagraph });
                             currentParagraph = [];
                         }
-                        html += styledText;
-                    } else {
-                        currentParagraph.push(styledText + ' ');
+                        blocks.push({ type: 'image', dataUrl: item.dataUrl });
+                        lastLineY = null;
+                    } else if (item.type === 'line') {
+                        const line = item.line;
+                        const lineIndex = item.lineIndex;
+
+                        // Check if this line is part of a table
+                        const inTable = tableRegions.some(t => lineIndex >= t.startIdx && lineIndex <= t.endIdx);
+
+                        if (inTable) {
+                            // Flush paragraph and start/continue table
+                            if (currentParagraph.length > 0 && currentParagraph[0].type !== 'table') {
+                                blocks.push({ type: 'paragraph', lines: currentParagraph });
+                                currentParagraph = [];
+                            }
+
+                            if (currentParagraph.length === 0 || currentParagraph[0].type !== 'table') {
+                                currentParagraph = [{ type: 'table', rows: [] }];
+                            }
+
+                            currentParagraph[0].rows.push(line);
+                        } else {
+                            // Regular text line
+                            if (currentParagraph.length > 0 && currentParagraph[0].type === 'table') {
+                                blocks.push(currentParagraph[0]);
+                                currentParagraph = [];
+                            }
+
+                            // Check for paragraph break
+                            const maxFontSize = Math.max(...line.items.map(it => it.height));
+                            const isHeading = maxFontSize > 15;
+                            const largeGap = lastLineY !== null && (lastLineY - line.pdfTop) > line.avgHeight * 2;
+
+                            // Check if line is indented (suggesting new paragraph)
+                            const isIndented = line.items[0] && line.items[0].x > 100;
+
+                            // Check if previous line ended with sentence-ending punctuation
+                            const prevLineEndsParagraph = currentParagraph.length > 0 &&
+                                /[.!?]\s*$/.test(currentParagraph[currentParagraph.length - 1].items[currentParagraph[currentParagraph.length - 1].items.length - 1]?.text || '');
+
+                            const isNewParagraph = largeGap || (prevLineEndsParagraph && isIndented);
+
+                            if ((isNewParagraph || isHeading) && currentParagraph.length > 0) {
+                                blocks.push({ type: 'paragraph', lines: currentParagraph });
+                                currentParagraph = [];
+                            }
+
+                            currentParagraph.push(line);
+                        }
+
+                        lastLineY = line.y;
                     }
-                    
-                    lastY = y;
-                    lastHeight = height;
                 });
-                
-                // Output remaining paragraph
+
+                // Flush remaining paragraph or table
                 if (currentParagraph.length > 0) {
-                    html += `<p style="margin-bottom: 0.8em; line-height: 1.5;">${currentParagraph.join('')}</p>`;
+                    if (currentParagraph[0].type === 'table') {
+                        blocks.push(currentParagraph[0]);
+                    } else {
+                        blocks.push({ type: 'paragraph', lines: currentParagraph });
+                    }
                 }
-                
-                html += `</div>`;
+
+
+                // Render blocks
+                blocks.forEach(block => {
+                    if (block.type === 'image') {
+                        pageHtml += `<div style="margin: 1.5em 0; text-align: center;">
+                            <img src="${block.dataUrl}" style="max-width: 100%; height: auto; border: 1px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" alt="Extracted Image">
+                        </div>`;
+                    } else if (block.type === 'table') {
+                        // Render as table
+                        pageHtml += `<div style="margin: 1em 0; overflow-x: auto;">
+                            <table style="border-collapse: collapse; width: auto; margin: 0 auto;">`;
+
+                        block.rows.forEach((row, rowIdx) => {
+                            pageHtml += `<tr>`;
+                            row.items.forEach(item => {
+                                const isBold = item.fontName.toLowerCase().includes('bold');
+                                const fontSize = Math.round(item.height);
+                                const isHeader = rowIdx === 0 || isBold;
+                                const tag = isHeader ? 'th' : 'td';
+                                const styles = [
+                                    `font-size: ${fontSize}px`,
+                                    'padding: 6px 12px',
+                                    'border: 1px solid #ddd',
+                                    'text-align: left'
+                                ];
+                                if (isBold) styles.push('font-weight: bold');
+                                if (isHeader) styles.push('background: #f5f5f5');
+
+                                pageHtml += `<${tag} style="${styles.join('; ')}">${item.text}</${tag}>`;
+                            });
+                            pageHtml += `</tr>`;
+                        });
+
+                        pageHtml += `</table></div>`;
+                    } else if (block.type === 'paragraph') {
+                        // Get all text items from lines
+                        const allItems = block.lines ? block.lines.flatMap(line => line.items) : block.items || [];
+                        if (allItems.length === 0) return;
+
+                        const maxFontSize = Math.max(...allItems.map(it => it.height));
+                        const isHeading = maxFontSize > 15;
+                        const isLargeHeading = maxFontSize > 18;
+
+                        if (isHeading) {
+                            // Render as heading
+                            let headingText = '';
+                            allItems.forEach(item => {
+                                const isBold = item.fontName.toLowerCase().includes('bold') ||
+                                               item.fontName.toLowerCase().includes('black') ||
+                                               item.fontName.toLowerCase().includes('heavy');
+                                const isItalic = item.fontName.toLowerCase().includes('italic') ||
+                                                 item.fontName.toLowerCase().includes('oblique');
+
+                                const fontSize = Math.round(item.height);
+                                let styles = [`font-size: ${fontSize}px`];
+
+                                if (isBold) styles.push('font-weight: bold');
+                                if (isItalic) styles.push('font-style: italic');
+
+                                headingText += `<span style="${styles.join('; ')}">${item.text}</span>`;
+                            });
+
+                            const headingTag = isLargeHeading ? 'h2' : 'h3';
+                            const marginTop = isLargeHeading ? '1.2em' : '1em';
+                            pageHtml += `<${headingTag} style="margin: ${marginTop} 0 0.5em 0; line-height: 1.3;">${headingText}</${headingTag}>`;
+                        } else {
+                            // Render as paragraph with proper line structure
+                            pageHtml += `<div style="margin-bottom: 1em; line-height: 1.6;">`;
+
+                            block.lines.forEach((line, lineIdx) => {
+                                let lineText = '';
+                                const lineItems = line.items;
+
+                                // Check if line is a bullet point or list item
+                                const firstText = lineItems[0]?.text.trim();
+                                const isBullet = /^[\u2022\u2023\u25E6\u2043\u2219\-\*]/.test(firstText) ||
+                                                /^[0-9]+[.)]/.test(firstText) ||
+                                                /^[a-z][.)]/.test(firstText);
+
+                                lineItems.forEach((item, idx) => {
+                                    const isBold = item.fontName.toLowerCase().includes('bold') ||
+                                                   item.fontName.toLowerCase().includes('black') ||
+                                                   item.fontName.toLowerCase().includes('heavy');
+                                    const isItalic = item.fontName.toLowerCase().includes('italic') ||
+                                                     item.fontName.toLowerCase().includes('oblique');
+
+                                    const fontSize = Math.round(item.height);
+                                    let styles = [`font-size: ${fontSize}px`];
+
+                                    if (isBold) styles.push('font-weight: bold');
+                                    if (isItalic) styles.push('font-style: italic');
+
+                                    const needsSpace = !item.text.endsWith(' ') && idx < lineItems.length - 1;
+                                    lineText += `<span style="${styles.join('; ')}">${item.text}${needsSpace ? ' ' : ''}</span>`;
+                                });
+
+                                // Check if this line ends a sentence or should break
+                                const endsWithPunctuation = /[.!?:;]\s*$/.test(lineItems[lineItems.length - 1]?.text || '');
+                                const nextLineIsBullet = lineIdx < block.lines.length - 1 &&
+                                    /^[\u2022\u2023\u25E6\u2043\u2219\-\*]/.test(block.lines[lineIdx + 1]?.items[0]?.text.trim() || '') ||
+                                    /^[0-9]+[.)]/.test(block.lines[lineIdx + 1]?.items[0]?.text.trim() || '');
+
+                                if (isBullet) {
+                                    // Render as list item
+                                    pageHtml += `<div style="margin-left: 1.5em; text-indent: -1em; margin-bottom: 0.3em;">${lineText}</div>`;
+                                } else if (endsWithPunctuation || nextLineIsBullet || lineIdx === block.lines.length - 1) {
+                                    // Complete sentence or last line - add line break
+                                    pageHtml += `${lineText}<br>`;
+                                } else {
+                                    // Continuation - add space
+                                    pageHtml += `${lineText} `;
+                                }
+                            });
+
+                            pageHtml += `</div>`;
+                        }
+                    }
+                });                pageHtml += `</div>`;
+                pages.push(pageHtml);
+                html += pageHtml;
             }
 
-            return html || '<p>No text content found in PDF</p>';
+            return { pages, html: html || '<p>No text content found in PDF</p>' };
         }
 
         async function convertWord(file) {
             const arrayBuffer = await file.arrayBuffer();
             const result = await mammoth.convertToHtml({ arrayBuffer });
-            return result.value || '<p>No content found in document</p>';
+            const htmlContent = result.value || '<p>No content found in document</p>';
+
+            // Split content into pages (approximate page breaks)
+            const pages = splitHtmlIntoPages(htmlContent);
+
+            return { pages, html: htmlContent };
         }
 
-        setupPanel(1);
-        setupPanel(2);
+        function splitHtmlIntoPages(html) {
+            // Create a temporary div to parse the HTML
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+            tempDiv.style.cssText = 'position: absolute; visibility: hidden; width: 800px; line-height: 1.6;';
+            document.body.appendChild(tempDiv);
+
+            const pages = [];
+            let currentPage = '';
+            let currentHeight = 0;
+            const maxPageHeight = 1056; // Approximate A4 height in pixels (11 inches * 96 dpi)
+            const pageMargin = 100;
+            let pageNumber = 1;
+
+            const children = Array.from(tempDiv.children);
+
+            children.forEach((element, idx) => {
+                const clone = element.cloneNode(true);
+                const testDiv = document.createElement('div');
+                testDiv.style.cssText = 'position: absolute; visibility: hidden; width: 800px; line-height: 1.6;';
+                testDiv.appendChild(clone);
+                document.body.appendChild(testDiv);
+
+                const elementHeight = testDiv.offsetHeight;
+                document.body.removeChild(testDiv);
+
+                // Check if adding this element would exceed page height
+                if (currentHeight + elementHeight > maxPageHeight && currentPage.length > 0) {
+                    // Save current page with page header
+                    const pageWithHeader = `<div style="margin-bottom: 2em;">
+                        <div style="font-size: 10px; color: #999; margin-bottom: 1em; border-bottom: 1px solid #ddd; padding-bottom: 0.5em;">Page ${pageNumber}</div>
+                        ${currentPage}
+                    </div>`;
+                    pages.push(pageWithHeader);
+                    currentPage = '';
+                    currentHeight = 0;
+                    pageNumber++;
+                }
+
+                currentPage += element.outerHTML;
+                currentHeight += elementHeight;
+            });
+
+            // Add the last page with page header
+            if (currentPage.length > 0) {
+                const pageWithHeader = `<div style="margin-bottom: 2em;">
+                    <div style="font-size: 10px; color: #999; margin-bottom: 1em; border-bottom: 1px solid #ddd; padding-bottom: 0.5em;">Page ${pageNumber}</div>
+                    ${currentPage}
+                </div>`;
+                pages.push(pageWithHeader);
+            }
+
+            document.body.removeChild(tempDiv);
+
+            return pages.length > 0 ? pages : [html];
+        }
+
+        window.panel1Api = setupPanel(1);
+        window.panel2Api = setupPanel(2);
     </script>
 </body>
 </html>
