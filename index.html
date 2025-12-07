@@ -578,6 +578,7 @@
             let currentPage = 0;
             let searchMatches = [];
             let currentMatchIndex = -1;
+            let lastSearchTerm = ''; // Track last search term
 
             // Page navigation handlers
             firstPageBtn.addEventListener('click', () => goToPage(0));
@@ -588,12 +589,29 @@
 
             function goToPage(pageIndex) {
                 if (pageIndex < 0 || pageIndex >= pdfPages.length) return;
+
+                // Set navigation flag to prevent observer interference
+                isNavigating = true;
                 currentPage = pageIndex;
 
                 // Scroll to the page
                 const pageElement = content.querySelector(`#page${panelNum}-${pageIndex}`);
                 if (pageElement) {
                     pageElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+                    // Trigger re-render to ensure this page and its buffer are rendered
+                    const panelApi = window[`panel${panelNum}Api`];
+                    if (panelApi && panelApi.rerenderVisiblePages) {
+                        // Small delay to let scroll happen first
+                        setTimeout(() => {
+                            panelApi.rerenderVisiblePages();
+                            // Clear navigation flag after rendering completes
+                            setTimeout(() => { isNavigating = false; }, 500);
+                        }, 100);
+                    } else {
+                        // Clear navigation flag if no rerender needed
+                        setTimeout(() => { isNavigating = false; }, 500);
+                    }
                 }
 
                 updatePageNav();
@@ -614,15 +632,63 @@
             }
 
             // Search handlers
-            searchInput.addEventListener('input', performSearch);
-            searchPrevBtn.addEventListener('click', () => navigateMatch(-1));
-            searchNextBtn.addEventListener('click', () => navigateMatch(1));
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    performSearch();
+                }
+            });
+            searchPrevBtn.addEventListener('click', async () => {
+                const currentTerm = searchInput.value.trim();
+                if (currentTerm.length === 0) return;
 
-            function performSearch() {
+                // Only perform full search if term changed
+                if (currentTerm !== lastSearchTerm) {
+                    await performSearch();
+                }
+                navigateMatch(-1);
+            });
+            searchNextBtn.addEventListener('click', async () => {
+                const currentTerm = searchInput.value.trim();
+                if (currentTerm.length === 0) return;
+
+                // Only perform full search if term changed
+                if (currentTerm !== lastSearchTerm) {
+                    await performSearch();
+                }
+                navigateMatch(1);
+            });
+
+            async function performSearch() {
                 const searchTerm = searchInput.value.trim();
-                const docContent = content.querySelector('.document-content');
+
+                // If same search term, don't re-search
+                if (searchTerm === lastSearchTerm && searchMatches.length > 0) {
+                    return;
+                }
+
+                lastSearchTerm = searchTerm;
+                let docContent = content.querySelector('.document-content');
 
                 if (!docContent) return;
+
+                // If searching and we have lazy-loaded pages, ensure all pages are loaded
+                const wasLazyLoaded = documentType === 'pdf' && pdfDocument;
+                const needsFullRender = wasLazyLoaded && searchTerm.length > 0 && searchMatches.length === 0;
+
+                if (needsFullRender) {
+                    Logger.log('performance', `Panel ${panelNum} - Loading all pages for search`);
+                    for (let i = 0; i < rawPageData.length; i++) {
+                        if (rawPageData[i] === null) {
+                            rawPageData[i] = await convertPDFPage(pdfDocument, i + 1);
+                        }
+                    }
+                    // Render all pages
+                    await renderAllPagesForSearch();
+                    // Get docContent again after re-rendering
+                    docContent = content.querySelector('.document-content');
+                    if (!docContent) return;
+                }
 
                 // Remove previous highlights
                 const highlighted = docContent.querySelectorAll('.highlight');
@@ -637,7 +703,14 @@
                 searchMatches = [];
                 currentMatchIndex = -1;
 
-                if (searchTerm.length === 0) return;
+                if (searchTerm.length === 0) {
+                    lastSearchTerm = '';
+                    // If search cleared and was lazy loaded, go back to lazy rendering
+                    if (wasLazyLoaded) {
+                        await renderVisiblePages();
+                    }
+                    return;
+                }
 
                 // Escape regex special characters
                 const escapedTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -777,7 +850,11 @@
 
             function scrollToMatch() {
                 if (currentMatchIndex >= 0 && currentMatchIndex < searchMatches.length) {
+                    // Temporarily set navigation flag to prevent observer interference
+                    isNavigating = true;
                     searchMatches[currentMatchIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    // Clear flag after scroll animation
+                    setTimeout(() => { isNavigating = false; }, 800);
                 }
             }
 
@@ -807,13 +884,23 @@
             increaseBtn.addEventListener('click', () => {
                 fontAdjustment++;
                 fontDisplay.textContent = fontAdjustment >= 0 ? `+${fontAdjustment}` : fontAdjustment;
-                applyFontAdjustment(content, fontAdjustment);
+
+                // Trigger re-render of visible pages with new font size
+                const panelApi = window[`panel${panelNum}Api`];
+                if (panelApi && panelApi.rerenderVisiblePages) {
+                    panelApi.rerenderVisiblePages();
+                }
             });
 
             decreaseBtn.addEventListener('click', () => {
                 fontAdjustment--;
                 fontDisplay.textContent = fontAdjustment >= 0 ? `+${fontAdjustment}` : fontAdjustment;
-                applyFontAdjustment(content, fontAdjustment);
+
+                // Trigger re-render of visible pages with new font size
+                const panelApi = window[`panel${panelNum}Api`];
+                if (panelApi && panelApi.rerenderVisiblePages) {
+                    panelApi.rerenderVisiblePages();
+                }
             });
 
             clearBtn.addEventListener('click', () => {
@@ -825,22 +912,165 @@
                 pdfPages = [];
                 currentPage = 0;
                 pageNav.style.display = 'none';
+
+                // Clear the panel API reference
+                const panelApi = window[`panel${panelNum}Api`];
+                if (panelApi) {
+                    panelApi.setContent('');
+                }
             });
+
+            // Store raw page data (not yet rendered with font adjustments)
+            let rawPageData = [];
+
+            // Store PDF document for lazy loading
+            let pdfDocument = null;
+            let documentType = null; // 'pdf' or 'word'
+            let isNavigating = false; // Flag to prevent observer interference during navigation
+
+            // Observe page visibility and render on-demand
+            let pageObserver = null;
+            function setupPageObserver() {
+                if (pageObserver) {
+                    pageObserver.disconnect();
+                }
+
+                pageObserver = new IntersectionObserver((entries) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            const pageElement = entry.target;
+                            const pageIndex = parseInt(pageElement.dataset.pageIndex);
+
+                            // Update current page only if not programmatically navigating
+                            if (!isNavigating && pageIndex !== currentPage) {
+                                currentPage = pageIndex;
+                                updatePageNav();
+                            }
+
+                            // If this is a placeholder, trigger re-render
+                            if (pageElement.classList.contains('pdf-page-placeholder')) {
+                                Logger.log('performance', `Panel ${panelNum} - User scrolled to page ${pageIndex}, re-rendering visible range`);
+                                renderVisiblePages();
+                            }
+                        }
+                    });
+                }, {
+                    root: content,
+                    rootMargin: '50px', // Start loading slightly before page is visible
+                    threshold: 0.1
+                });
+
+                // Observe all page elements
+                content.querySelectorAll('.pdf-page').forEach(page => {
+                    pageObserver.observe(page);
+                });
+            }
+
+            // Apply font adjustment to a single page's HTML
+            function applyFontToPageHtml(pageHtml, adjustment) {
+                if (adjustment === 0) return pageHtml;
+
+                // Use regex to find and adjust all font-size values in inline styles
+                return pageHtml.replace(/font-size:\s*(\d+(?:\.\d+)?)px/g, (match, size) => {
+                    const originalSize = parseFloat(size);
+                    const newSize = Math.max(6, originalSize + adjustment);
+                    return `font-size: ${newSize}px`;
+                });
+            }
+
+            // Modified renderVisiblePages to handle lazy loading
+            async function renderVisiblePages() {
+                if (rawPageData.length === 0) return;
+
+                const BUFFER_SIZE = 3;
+                const startPage = Math.max(0, currentPage - BUFFER_SIZE);
+                const endPage = Math.min(rawPageData.length - 1, currentPage + BUFFER_SIZE);
+
+                Logger.log('performance', `Panel ${panelNum} - Rendering pages ${startPage} to ${endPage} (current: ${currentPage})`);
+
+                // Load pages if needed (for PDF lazy loading)
+                if (documentType === 'pdf' && pdfDocument) {
+                    for (let i = startPage; i <= endPage; i++) {
+                        if (rawPageData[i] === null) {
+                            Logger.log('performance', `Panel ${panelNum} - Loading page ${i + 1} from PDF`);
+                            rawPageData[i] = await convertPDFPage(pdfDocument, i + 1);
+                        }
+                    }
+                }
+
+                // Create placeholder structure with only visible pages rendered
+                let allPagesHtml = '<div class="document-content">';
+
+                for (let i = 0; i < rawPageData.length; i++) {
+                    if (i >= startPage && i <= endPage && rawPageData[i] !== null) {
+                        // Render this page with current font adjustment
+                        const renderedPage = applyFontToPageHtml(rawPageData[i], fontAdjustment);
+                        allPagesHtml += `<div id="page${panelNum}-${i}" class="pdf-page" data-page-index="${i}" style="margin-bottom: 2em;">${renderedPage}</div>`;
+                    } else {
+                        // Placeholder for unrendered pages
+                        const estimatedHeight = i === 0 ? 1000 : 800;
+                        allPagesHtml += `<div id="page${panelNum}-${i}" class="pdf-page pdf-page-placeholder" data-page-index="${i}" style="min-height: ${estimatedHeight}px; margin-bottom: 2em; background: #f5f5f5; display: flex; align-items: center; justify-content: center; color: #999;">
+                            <div>Page ${i + 1} (not rendered)</div>
+                        </div>`;
+                    }
+                }
+
+                allPagesHtml += '</div>';
+                content.innerHTML = allPagesHtml;
+
+                setupPageObserver();
+            }
+
+            // Render all pages for search functionality
+            async function renderAllPagesForSearch() {
+                if (rawPageData.length === 0) return;
+
+                Logger.log('performance', `Panel ${panelNum} - Rendering all ${rawPageData.length} pages for search`);
+
+                let allPagesHtml = '<div class="document-content">';
+
+                for (let i = 0; i < rawPageData.length; i++) {
+                    if (rawPageData[i] !== null) {
+                        const renderedPage = applyFontToPageHtml(rawPageData[i], fontAdjustment);
+                        allPagesHtml += `<div id="page${panelNum}-${i}" class="pdf-page" data-page-index="${i}" style="margin-bottom: 2em;">${renderedPage}</div>`;
+                    }
+                }
+
+                allPagesHtml += '</div>';
+                content.innerHTML = allPagesHtml;
+
+                setupPageObserver();
+            }
 
             // Return API for external access
             return {
-                setAllPages: (pages, fullHtml) => {
-                    pdfPages = pages;
+                setPDFDocument: async (pdfDoc, numPages) => {
+                    pdfDocument = pdfDoc;
+                    documentType = 'pdf';
+                    pdfPages = new Array(numPages).fill(null); // Placeholder array
+                    rawPageData = new Array(numPages).fill(null); // Will be loaded on-demand
                     currentPage = 0;
 
-                    // Display all pages with IDs for jumping
-                    let allPagesHtml = '<div class="document-content">';
-                    pages.forEach((pageHtml, i) => {
-                        allPagesHtml += `<div id="page${panelNum}-${i}" class="pdf-page" style="margin-bottom: 2em;">${pageHtml}</div>`;
-                    });
-                    allPagesHtml += '</div>';
+                    // Setup page selector
+                    pageSelect.innerHTML = '';
+                    for (let i = 0; i < numPages; i++) {
+                        const option = document.createElement('option');
+                        option.value = i;
+                        option.textContent = `Page ${i + 1}`;
+                        pageSelect.appendChild(option);
+                    }
 
-                    content.innerHTML = allPagesHtml;
+                    pageNav.style.display = 'flex';
+                    updatePageNav();
+
+                    // Render only visible pages
+                    await renderVisiblePages();
+                },
+                setAllPages: (pages, fullHtml) => {
+                    rawPageData = pages; // Store raw, unadjusted HTML
+                    pdfPages = pages;
+                    documentType = 'word';
+                    currentPage = 0;
 
                     // Setup page selector
                     pageSelect.innerHTML = '';
@@ -853,13 +1083,21 @@
 
                     pageNav.style.display = 'flex';
                     updatePageNav();
-                    applyFontAdjustment(content, fontAdjustment);
+
+                    // Render only visible pages
+                    renderVisiblePages();
                 },
                 setContent: (html) => {
                     content.innerHTML = `<div class="document-content">${html}</div>`;
-                    applyFontAdjustment(content, fontAdjustment);
                     pageNav.style.display = 'none';
                     pdfPages = [];
+                    rawPageData = [];
+                    pdfDocument = null;
+                    documentType = null;
+                },
+                // Expose render function for font changes
+                rerenderVisiblePages: async () => {
+                    await renderVisiblePages();
                 }
             };
         }
@@ -874,7 +1112,14 @@
                 if (fileName.endsWith('.pdf')) {
                     const result = await convertPDF(file);
                     const panelApi = window[`panel${panelNum}Api`];
-                    panelApi.setAllPages(result.pages, result.html);
+
+                    if (result.isLazyLoad) {
+                        // Lazy load PDF
+                        await panelApi.setPDFDocument(result.pdfDoc, result.numPages);
+                    } else {
+                        // Fallback for older format
+                        panelApi.setAllPages(result.pages, result.html);
+                    }
                 } else if (fileName.endsWith('.docx') || fileName.endsWith('.doc')) {
                     const result = await convertWord(file);
                     const panelApi = window[`panel${panelNum}Api`];
@@ -883,32 +1128,11 @@
                     throw new Error('Unsupported file format');
                 }
 
-                applyFontAdjustment(contentDiv, fontAdjustment);
+                // Font adjustment is now handled automatically during rendering
             } catch (error) {
                 contentDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
             }
-        }        function applyFontAdjustment(contentDiv, adjustment) {
-            const docContent = contentDiv.querySelector('.document-content');
-            if (!docContent) return;
-
-            // Apply adjustment to all elements with font sizes
-            const allElements = docContent.querySelectorAll('*');
-            allElements.forEach(element => {
-                const computedStyle = window.getComputedStyle(element);
-                const currentSize = parseFloat(computedStyle.fontSize);
-
-                if (currentSize) {
-                    // Store original size on first adjustment
-                    if (!element.dataset.originalSize) {
-                        element.dataset.originalSize = currentSize;
-                    }
-
-                    const originalSize = parseFloat(element.dataset.originalSize);
-                    const newSize = originalSize + adjustment;
-                    element.style.fontSize = `${Math.max(6, newSize)}px`;
-                }
-            });
-        }
+        }        // Font adjustment is now handled within setupPanel's applyFontToPageHtml function
 
         async function convertPDF(file) {
             Logger.time('performance', 'PDF Conversion');
@@ -916,16 +1140,27 @@
 
             const arrayBuffer = await file.arrayBuffer();
             const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-            let html = '';
-            const pages = [];
 
-            Logger.log('performance', `PDF loaded: ${pdf.numPages} pages`);
+            Logger.log('performance', `PDF loaded: ${pdf.numPages} pages - preparing lazy loading structure`);
 
-            for (let i = 1; i <= pdf.numPages; i++) {
-                Logger.group('pdfElements', `===== PAGE ${i} of ${pdf.numPages} =====`);
-                Logger.time('performance', `Page ${i} processing`);
+            // Store PDF document and metadata for lazy loading
+            const pdfDoc = pdf;
+            const numPages = pdf.numPages;
 
-                const page = await pdf.getPage(i);
+            // Return lazy-loadable structure instead of processing all pages
+            return {
+                pdfDoc: pdfDoc,
+                numPages: numPages,
+                isLazyLoad: true
+            };
+        }
+
+        async function convertPDFPage(pdfDoc, pageNumber) {
+            const i = pageNumber;
+            Logger.group('pdfElements', `===== PAGE ${i} of ${pdfDoc.numPages} =====`);
+            Logger.time('performance', `Page ${i} processing`);
+
+            const page = await pdfDoc.getPage(i);
                 const viewport = page.getViewport({ scale: 1.5 });
                 const pageHeight = viewport.height;
                 const pageWidth = viewport.width;
@@ -1721,19 +1956,15 @@
                             pageHtml += `</div>`;
                         }
                     }
-                });                pageHtml += `</div>`;
-                pages.push(pageHtml);
-                html += pageHtml;
+                });
 
-                Logger.timeEnd('performance', `Page ${i} processing`);
-                Logger.log('performance', `Page ${i} - Processing complete`);
-                Logger.groupEnd('pdfElements');
-            }
+            pageHtml += `</div>`;
 
-            Logger.timeEnd('performance', 'PDF Conversion');
-            Logger.log('performance', `PDF conversion complete - Total pages: ${pages.length}`);
+            Logger.timeEnd('performance', `Page ${i} processing`);
+            Logger.log('performance', `Page ${i} - Processing complete`);
+            Logger.groupEnd('pdfElements');
 
-            return { pages, html: html || '<p>No text content found in PDF</p>' };
+            return pageHtml;
         }
 
         async function convertWord(file) {
