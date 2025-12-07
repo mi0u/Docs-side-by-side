@@ -1089,27 +1089,199 @@
                     Logger.log('pdfElements', `Page ${i} - ...and ${textItems.length - 10} more text elements`);
                 }
 
-                // Group text into horizontal rows/lines first
+                // Detect columns from raw text items
+                Logger.time('columnDetection', `Page ${i} column detection`);
+
+                const detectColumnsFromItems = (items) => {
+                    if (items.length === 0) return { hasColumns: false, columns: [] };
+
+                    // Simple approach: Group items by their X position (rounded to nearest 5px)
+                    const xGroups = {};
+                    items.forEach(item => {
+                        const xKey = Math.round(item.x / 5) * 5;
+                        if (!xGroups[xKey]) {
+                            xGroups[xKey] = [];
+                        }
+                        xGroups[xKey].push(item);
+                    });
+
+                    // Find X positions that have significant number of items (at least 10% of total)
+                    const minItems = Math.max(10, Math.floor(items.length * 0.1));
+                    const significantXs = Object.entries(xGroups)
+                        .filter(([x, items]) => items.length >= minItems)
+                        .map(([x, items]) => ({ x: parseFloat(x), count: items.length }))
+                        .sort((a, b) => a.x - b.x);
+
+                    Logger.log('columnDetection', `Page ${i} - Significant X positions found (min ${minItems} items):`,
+                        significantXs.map(s => ({ x: s.x, count: s.count }))
+                    );
+
+                    // Merge nearby X positions (within 30px)
+                    const mergedXs = [];
+                    significantXs.forEach(xPos => {
+                        if (mergedXs.length === 0 || xPos.x - mergedXs[mergedXs.length - 1].x > 30) {
+                            mergedXs.push({ x: xPos.x, count: xPos.count });
+                        } else {
+                            const prev = mergedXs[mergedXs.length - 1];
+                            prev.x = (prev.x * prev.count + xPos.x * xPos.count) / (prev.count + xPos.count);
+                            prev.count += xPos.count;
+                        }
+                    });
+
+                    Logger.log('columnDetection', `Page ${i} - After merging (within 30px):`,
+                        mergedXs.map(m => ({ x: m.x.toFixed(2), count: m.count }))
+                    );
+
+                    // If we have at least 2 distinct X positions with gap > 70px, we have columns
+                    const hasColumns = mergedXs.length >= 2 &&
+                                      mergedXs.some((xPos, idx) =>
+                                          idx > 0 && xPos.x - mergedXs[idx-1].x > 70
+                                      );
+
+                    if (hasColumns) {
+                        // Create columns based on these X positions
+                        const columns = mergedXs.map((xPos, idx) => {
+                            const nextX = mergedXs[idx + 1];
+
+                            return {
+                                index: idx,
+                                leftEdge: xPos.x - 10,
+                                rightEdge: nextX ? (xPos.x + nextX.x) / 2 : 9999,
+                                centerX: xPos.x,
+                                itemCount: xPos.count
+                            };
+                        });
+
+                        return { hasColumns: true, columns };
+                    }
+
+                    return { hasColumns: false, columns: [] };
+                };                const columnInfo = detectColumnsFromItems(textItems);
+
+                if (columnInfo.hasColumns) {
+                    Logger.log('columnDetection', `Page ${i} - Multi-column layout detected:`, {
+                        columnCount: columnInfo.columns.length,
+                        columns: columnInfo.columns.map(c => ({
+                            index: c.index,
+                            leftEdge: c.leftEdge.toFixed(2),
+                            rightEdge: c.rightEdge.toFixed(2),
+                            centerX: c.centerX.toFixed(2),
+                            itemCount: c.itemCount
+                        }))
+                    });
+
+                    // Assign column index to each text item
+                    textItems.forEach(item => {
+                        item.columnIndex = -1; // Default: no column assigned
+                        for (let col of columnInfo.columns) {
+                            if (item.x >= col.leftEdge && item.x < col.rightEdge) {
+                                item.columnIndex = col.index;
+                                break;
+                            }
+                        }
+                        // If still not assigned, assign to closest column
+                        if (item.columnIndex === -1) {
+                            let minDist = Infinity;
+                            columnInfo.columns.forEach(col => {
+                                const dist = Math.min(
+                                    Math.abs(item.x - col.leftEdge),
+                                    Math.abs(item.x - col.rightEdge)
+                                );
+                                if (dist < minDist) {
+                                    minDist = dist;
+                                    item.columnIndex = col.index;
+                                }
+                            });
+                        }
+                    });
+
+                    Logger.log('columnDetection', `Page ${i} - Column assignment summary:`,
+                        columnInfo.columns.map(col => ({
+                            column: col.index,
+                            itemCount: textItems.filter(it => it.columnIndex === col.index).length
+                        }))
+                    );
+                } else {
+                    // Assign all items to column 0
+                    textItems.forEach(item => {
+                        item.columnIndex = 0;
+                    });
+                    Logger.log('columnDetection', `Page ${i} - Single column layout`);
+                }
+
+                Logger.timeEnd('columnDetection', `Page ${i} column detection`);
+
+                // Sort text items in natural reading order based on coordinates
+                Logger.time('textLayout', `Page ${i} text sorting`);
+
+                if (columnInfo.hasColumns) {
+                    // Multi-column: sort by column first (left to right), then by Y (top to bottom) within each column
+                    textItems.sort((a, b) => {
+                        // Primary: column order (left to right)
+                        const colA = a.columnIndex !== undefined ? a.columnIndex : 0;
+                        const colB = b.columnIndex !== undefined ? b.columnIndex : 0;
+                        const colDiff = colA - colB;
+                        if (colDiff !== 0) return colDiff;
+
+                        // Secondary: top to bottom within same column (higher y = higher on page)
+                        const yDiff = b.pdfTop - a.pdfTop;
+                        if (Math.abs(yDiff) > 2) return yDiff;
+
+                        // Tertiary: left to right within same line
+                        return a.x - b.x;
+                    });
+
+                    Logger.log('textLayout', `Page ${i} - First 20 items after sorting:`,
+                        textItems.slice(0, 20).map((item, idx) => ({
+                            idx,
+                            col: item.columnIndex,
+                            x: item.x.toFixed(2),
+                            y: item.pdfTop.toFixed(2),
+                            text: item.text.substring(0, 40)
+                        }))
+                    );
+
+                    Logger.log('textLayout', `Page ${i} - Items 70-90 after sorting:`,
+                        textItems.slice(70, 90).map((item, idx) => ({
+                            idx: idx + 70,
+                            col: item.columnIndex,
+                            x: item.x.toFixed(2),
+                            y: item.pdfTop.toFixed(2),
+                            text: item.text.substring(0, 40)
+                        }))
+                    );
+                } else {
+                    // Single column: simple top-to-bottom, left-to-right
+                    textItems.sort((a, b) => {
+                        const yDiff = b.pdfTop - a.pdfTop;
+                        if (Math.abs(yDiff) > 2) return yDiff;
+                        return a.x - b.x;
+                    });
+                }
+
+                Logger.timeEnd('textLayout', `Page ${i} text sorting`);
+
+                // Now group sorted text items into lines
+                Logger.time('textLayout', `Page ${i} line grouping`);
                 const lines = [];
                 let currentLine = [];
                 let lastY = null;
 
                 textItems.forEach(item => {
-                    // Use a much stricter tolerance - only 5% of font height (about 0.5px for 10px font)
-                    // This prevents separate lines from being merged
-                    const tolerance = (item.height || 12) * 0.05;
+                    const tolerance = (item.height || 12) * 0.1; // 10% tolerance
+                    const yChanged = lastY !== null && Math.abs(item.y - lastY) > tolerance;
 
-                    if (lastY === null || Math.abs(item.y - lastY) > tolerance) {
-                        // New line
+                    if (yChanged) {
+                        // Save current line
                         if (currentLine.length > 0) {
-                            currentLine.sort((a, b) => a.x - b.x);  // Sort left to right
                             lines.push({
                                 items: currentLine,
                                 y: currentLine[0].y,
                                 pdfTop: Math.max(...currentLine.map(it => it.pdfTop)),
                                 avgHeight: currentLine.reduce((sum, it) => sum + it.height, 0) / currentLine.length,
                                 minX: Math.min(...currentLine.map(it => it.x)),
-                                maxX: Math.max(...currentLine.map(it => it.x + it.width))
+                                maxX: Math.max(...currentLine.map(it => it.x + it.width)),
+                                columnIndex: currentLine[0].columnIndex
                             });
                             currentLine = [];
                         }
@@ -1121,25 +1293,23 @@
 
                 // Add last line
                 if (currentLine.length > 0) {
-                    currentLine.sort((a, b) => a.x - b.x);
                     lines.push({
                         items: currentLine,
                         y: currentLine[0].y,
                         pdfTop: Math.max(...currentLine.map(it => it.pdfTop)),
                         avgHeight: currentLine.reduce((sum, it) => sum + it.height, 0) / currentLine.length,
                         minX: Math.min(...currentLine.map(it => it.x)),
-                        maxX: Math.max(...currentLine.map(it => it.x + it.width))
+                        maxX: Math.max(...currentLine.map(it => it.x + it.width)),
+                        columnIndex: currentLine[0].columnIndex
                     });
                 }
 
-                // Sort lines top to bottom
-                lines.sort((a, b) => b.pdfTop - a.pdfTop);
-
-                Logger.timeEnd('textLayout', `Page ${i} text layout analysis`);
+                Logger.timeEnd('textLayout', `Page ${i} line grouping`);
                 Logger.log('textLayout', `Page ${i} - Total lines detected: ${lines.length}`);
-                Logger.log('textLayout', `Page ${i} - Line samples (first 5):`,
+                Logger.log('textLayout', `Page ${i} - Line samples (first 100):`,
                     lines.slice(0, 100).map((line, idx) => ({
                         lineNum: idx,
+                        column: line.columnIndex !== undefined ? line.columnIndex : 'N/A',
                         y: line.y.toFixed(2),
                         x: line.minX.toFixed(2),
                         width: (line.maxX - line.minX).toFixed(2),
@@ -1147,23 +1317,6 @@
                         text: line.items.map(it => it.text).join(' ').substring(0, 60) + '...'
                     }))
                 );
-
-                // Detect multi-column layout
-                Logger.time('columnDetection', `Page ${i} column detection`);
-                const xPositions = lines.map(l => l.minX);
-                const uniqueXStarts = [...new Set(xPositions.map(x => Math.round(x / 10) * 10))].sort((a, b) => a - b);
-                const hasColumns = uniqueXStarts.length > 1 && contentWidth > 400;
-
-                if (hasColumns) {
-                    Logger.log('columnDetection', `Page ${i} - Multi-column layout detected:`, {
-                        columnCount: uniqueXStarts.length,
-                        columnStarts: uniqueXStarts.map(x => x.toFixed(2)),
-                        contentWidth: contentWidth.toFixed(2)
-                    });
-                } else {
-                    Logger.log('columnDetection', `Page ${i} - Single column layout`);
-                }
-                Logger.timeEnd('columnDetection', `Page ${i} column detection`);
 
                 // Detect large gaps (for images)
                 Logger.time('textLayout', `Page ${i} gap detection`);
