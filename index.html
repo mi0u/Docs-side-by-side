@@ -363,6 +363,7 @@
             <button class="view-btn active" id="viewBoth">Both Documents</button>
             <button class="view-btn" id="viewDoc1">Document 1 Only</button>
             <button class="view-btn" id="viewDoc2">Document 2 Only</button>
+            <button class="debug-btn" id="debugBtn">⚙️ Debug Logging</button>
         </div>
 
         <div class="panels" id="panels">
@@ -440,6 +441,79 @@
 
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        // ==========================================
+        // LOGGING SYSTEM
+        // ==========================================
+        // To enable/disable logging:
+        // 1. Set DEBUG_CONFIG.enabled = false to disable ALL logging
+        // 2. Or disable specific areas by setting to false:
+        //    - pdfElements: Logs all PDF text/image elements with exact coordinates
+        //    - wordPaging: Logs Word document page splitting process
+        //    - tableFinding: Logs table detection and structure analysis
+        //    - imageFinding: Logs image extraction from PDFs
+        //    - textLayout: Logs text positioning, lines, and gaps
+        //    - columnDetection: Logs multi-column layout detection
+        //    - paragraphs: Logs paragraph and block grouping
+        //    - performance: Logs timing information
+        // ==========================================
+        const DEBUG_CONFIG = {
+            // Master switch - set to false to disable ALL logging
+            enabled: true,
+
+            // Individual logging areas - enable/disable specific categories
+            areas: {
+                pdfElements: true,      // Log PDF element locations and coordinates
+                wordPaging: true,       // Log Word document page splitting
+                tableFinding: true,     // Log table detection and analysis
+                imageFinding: true,     // Log image extraction
+                textLayout: true,       // Log text positioning and layout analysis
+                columnDetection: true,  // Log column/multi-column detection
+                paragraphs: true,       // Log paragraph and block detection
+                performance: true       // Log performance metrics
+            }
+        };
+
+        // Logging utility functions
+        const Logger = {
+            log(area, message, data = null) {
+                if (!DEBUG_CONFIG.enabled || !DEBUG_CONFIG.areas[area]) return;
+
+                const timestamp = new Date().toISOString().substr(11, 12);
+                const prefix = `[${timestamp}] [${area.toUpperCase()}]`;
+
+                if (data) {
+                    console.log(`${prefix} ${message}`, data);
+                } else {
+                    console.log(`${prefix} ${message}`);
+                }
+            },
+
+            group(area, title) {
+                if (!DEBUG_CONFIG.enabled || !DEBUG_CONFIG.areas[area]) return;
+                console.group(`[${area.toUpperCase()}] ${title}`);
+            },
+
+            groupEnd(area) {
+                if (!DEBUG_CONFIG.enabled || !DEBUG_CONFIG.areas[area]) return;
+                console.groupEnd();
+            },
+
+            table(area, data) {
+                if (!DEBUG_CONFIG.enabled || !DEBUG_CONFIG.areas[area]) return;
+                console.table(data);
+            },
+
+            time(area, label) {
+                if (!DEBUG_CONFIG.enabled || !DEBUG_CONFIG.areas[area]) return;
+                console.time(`[${area.toUpperCase()}] ${label}`);
+            },
+
+            timeEnd(area, label) {
+                if (!DEBUG_CONFIG.enabled || !DEBUG_CONFIG.areas[area]) return;
+                console.timeEnd(`[${area.toUpperCase()}] ${label}`);
+            }
+        };
 
         // View control buttons
         const viewBothBtn = document.getElementById('viewBoth');
@@ -837,28 +911,47 @@
         }
 
         async function convertPDF(file) {
+            Logger.time('performance', 'PDF Conversion');
+            Logger.log('performance', `Starting PDF conversion: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
+
             const arrayBuffer = await file.arrayBuffer();
             const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
             let html = '';
             const pages = [];
 
+            Logger.log('performance', `PDF loaded: ${pdf.numPages} pages`);
+
             for (let i = 1; i <= pdf.numPages; i++) {
+                Logger.group('pdfElements', `===== PAGE ${i} of ${pdf.numPages} =====`);
+                Logger.time('performance', `Page ${i} processing`);
+
                 const page = await pdf.getPage(i);
                 const viewport = page.getViewport({ scale: 1.5 });
                 const pageHeight = viewport.height;
+                const pageWidth = viewport.width;
+
+                Logger.log('pdfElements', `Page ${i} dimensions:`, {
+                    width: pageWidth.toFixed(2),
+                    height: pageHeight.toFixed(2),
+                    scale: 1.5
+                });
 
                 let pageHtml = `<div style="margin-bottom: 2em;">`;
                 pageHtml += `<div style="font-size: 10px; color: #999; margin-bottom: 1em; border-bottom: 1px solid #ddd; padding-bottom: 0.5em;">Page ${i}</div>`;
 
                 // Get all content items (text and images) with their positions
                 const textContent = await page.getTextContent();
+                Logger.log('pdfElements', `Page ${i} - Total text items found: ${textContent.items.length}`);
 
                 // SIMPLE APPROACH: Render entire page, extract images separately,
                 // then insert images at gaps in text based on Y-coordinate analysis
 
                 // Extract images with their data
+                Logger.time('imageFinding', `Page ${i} image extraction`);
                 const imageItems = [];
                 const ops = await page.getOperatorList();
+
+                Logger.log('imageFinding', `Page ${i} - Total operations: ${ops.fnArray.length}`);
 
                 for (let j = 0; j < ops.fnArray.length; j++) {
                     if (ops.fnArray[j] === pdfjsLib.OPS.paintImageXObject ||
@@ -867,6 +960,7 @@
                         ops.fnArray[j] === pdfjsLib.OPS.paintFormXObjectBegin) {
 
                         const imageName = ops.argsArray[j][0];
+                        Logger.log('imageFinding', `Page ${i} - Found image operation: ${imageName}`);
 
                         try {
                             const img = await new Promise((resolve) => {
@@ -927,36 +1021,73 @@
                                 // Keep images that are at least 50x50 pixels
                                 if (imgDataUrl && imgDataUrl.length > 100 && width >= 50 && height >= 50) {
                                     imageItems.push({ dataUrl: imgDataUrl });
+                                    Logger.log('imageFinding', `Page ${i} - Image ${imageItems.length} extracted:`, {
+                                        width: width,
+                                        height: height,
+                                        dataSize: `${(imgDataUrl.length / 1024).toFixed(2)} KB`
+                                    });
+                                } else {
+                                    Logger.log('imageFinding', `Page ${i} - Image skipped (too small or invalid):`, {
+                                        width: width,
+                                        height: height
+                                    });
                                 }
                             }
                         } catch (err) {
-                            console.warn('Could not extract image:', err);
+                            Logger.log('imageFinding', `Page ${i} - Could not extract image: ${err.message}`);
                         }
                     }
                 }
 
-                console.log('Extracted', imageItems.length, 'images from page', i);
+                Logger.timeEnd('imageFinding', `Page ${i} image extraction`);
+                Logger.log('imageFinding', `Page ${i} - Total images extracted: ${imageItems.length}`);
 
                 // Build content using text coordinates and detect gaps for images
 
                 // ENHANCED APPROACH: Detect columns, tables, and complex layouts
 
                 // Analyze page width to detect columns
-                const pageWidth = viewport.width;
+                Logger.time('textLayout', `Page ${i} text layout analysis`);
+
                 const leftMargin = Math.min(...textContent.items.map(it => it.transform[4]));
                 const rightMargin = Math.max(...textContent.items.map(it => it.transform[4] + (it.width || 0)));
                 const contentWidth = rightMargin - leftMargin;
 
+                Logger.log('textLayout', `Page ${i} - Content boundaries:`, {
+                    leftMargin: leftMargin.toFixed(2),
+                    rightMargin: rightMargin.toFixed(2),
+                    contentWidth: contentWidth.toFixed(2)
+                });
+
                 // Sort text items by Y position first, then X (for reading order)
-                const textItems = textContent.items.map(item => ({
-                    x: item.transform[4],
-                    y: item.transform[5],  // baseline Y
-                    pdfTop: item.transform[5] + (item.height || 12),
-                    width: item.width || 0,
-                    height: item.height || 12,
-                    text: item.str,
-                    fontName: item.fontName || ''
-                }));
+                const textItems = textContent.items
+                    .filter(item => item.str && item.str.trim().length > 0) // Skip empty text items
+                    .map(item => ({
+                        x: item.transform[4],
+                        y: item.transform[5],  // baseline Y
+                        pdfTop: item.transform[5] + (item.height || 12),
+                        width: item.width || 0,
+                        height: item.height || 12,
+                        text: item.str,
+                        fontName: item.fontName || ''
+                    }));
+
+                // Log all text elements with coordinates
+                Logger.log('pdfElements', `Page ${i} - Text elements (first 10):`,
+                    textItems.slice(0, 100).map((item, idx) => ({
+                        index: idx,
+                        text: item.text,
+                        x: item.x.toFixed(2),
+                        y: item.y.toFixed(2),
+                        width: item.width.toFixed(2),
+                        height: item.height.toFixed(2),
+                        font: item.fontName
+                    }))
+                );
+
+                if (textItems.length > 10) {
+                    Logger.log('pdfElements', `Page ${i} - ...and ${textItems.length - 10} more text elements`);
+                }
 
                 // Group text into horizontal rows/lines first
                 const lines = [];
@@ -964,7 +1095,9 @@
                 let lastY = null;
 
                 textItems.forEach(item => {
-                    const tolerance = (item.height || 12) * 0.3;
+                    // Use a much stricter tolerance - only 5% of font height (about 0.5px for 10px font)
+                    // This prevents separate lines from being merged
+                    const tolerance = (item.height || 12) * 0.05;
 
                     if (lastY === null || Math.abs(item.y - lastY) > tolerance) {
                         // New line
@@ -1002,16 +1135,38 @@
                 // Sort lines top to bottom
                 lines.sort((a, b) => b.pdfTop - a.pdfTop);
 
+                Logger.timeEnd('textLayout', `Page ${i} text layout analysis`);
+                Logger.log('textLayout', `Page ${i} - Total lines detected: ${lines.length}`);
+                Logger.log('textLayout', `Page ${i} - Line samples (first 5):`,
+                    lines.slice(0, 100).map((line, idx) => ({
+                        lineNum: idx,
+                        y: line.y.toFixed(2),
+                        x: line.minX.toFixed(2),
+                        width: (line.maxX - line.minX).toFixed(2),
+                        items: line.items.length,
+                        text: line.items.map(it => it.text).join(' ').substring(0, 60) + '...'
+                    }))
+                );
+
                 // Detect multi-column layout
+                Logger.time('columnDetection', `Page ${i} column detection`);
                 const xPositions = lines.map(l => l.minX);
                 const uniqueXStarts = [...new Set(xPositions.map(x => Math.round(x / 10) * 10))].sort((a, b) => a - b);
                 const hasColumns = uniqueXStarts.length > 1 && contentWidth > 400;
 
                 if (hasColumns) {
-                    console.log('Multi-column layout detected. Column starts:', uniqueXStarts);
+                    Logger.log('columnDetection', `Page ${i} - Multi-column layout detected:`, {
+                        columnCount: uniqueXStarts.length,
+                        columnStarts: uniqueXStarts.map(x => x.toFixed(2)),
+                        contentWidth: contentWidth.toFixed(2)
+                    });
+                } else {
+                    Logger.log('columnDetection', `Page ${i} - Single column layout`);
                 }
+                Logger.timeEnd('columnDetection', `Page ${i} column detection`);
 
                 // Detect large gaps (for images)
+                Logger.time('textLayout', `Page ${i} gap detection`);
                 const gaps = [];
                 for (let k = 0; k < lines.length - 1; k++) {
                     const currentBottom = lines[k].y;
@@ -1021,11 +1176,19 @@
 
                     if (gapSize > avgFontSize * 3) {
                         gaps.push({ afterIndex: k, gapSize: gapSize });
-                        console.log(`Large gap detected: ${gapSize.toFixed(1)}px after line ${k}`);
+                        Logger.log('textLayout', `Page ${i} - Large gap detected:`, {
+                            afterLine: k,
+                            gapSize: gapSize.toFixed(2),
+                            threshold: (avgFontSize * 3).toFixed(2)
+                        });
                     }
                 }
+                Logger.log('textLayout', `Page ${i} - Total gaps found: ${gaps.length}`);
+                Logger.timeEnd('textLayout', `Page ${i} gap detection`);
 
                 // Detect tables (aligned columns of text with consistent spacing)
+                Logger.time('tableFinding', `Page ${i} table detection`);
+
                 const detectTable = (startIdx, endIdx) => {
                     const tableLines = lines.slice(startIdx, endIdx + 1);
                     if (tableLines.length < 2) return null;
@@ -1051,6 +1214,14 @@
                     const isConsistent = rowsWithMultiCols >= tableLines.length * 0.7;
 
                     if (numColumns >= 2 && tableLines.length >= 3 && isConsistent) {
+                        Logger.log('tableFinding', `Page ${i} - Table candidate found:`, {
+                            startLine: startIdx,
+                            endLine: endIdx,
+                            rows: tableLines.length,
+                            columns: numColumns,
+                            consistency: `${((rowsWithMultiCols / tableLines.length) * 100).toFixed(1)}%`
+                        });
+
                         return {
                             isTable: true,
                             startIdx: startIdx,
@@ -1087,7 +1258,20 @@
                     }
                 }
 
-                console.log('Detected', tableRegions.length, 'potential table(s)');
+                Logger.log('tableFinding', `Page ${i} - Total tables detected: ${tableRegions.length}`);
+
+                if (tableRegions.length > 0) {
+                    Logger.log('tableFinding', `Page ${i} - Table details:`,
+                        tableRegions.map(t => ({
+                            startLine: t.startIdx,
+                            endLine: t.endIdx,
+                            rows: t.endIdx - t.startIdx + 1,
+                            columns: t.numColumns
+                        }))
+                    );
+                }
+
+                Logger.timeEnd('tableFinding', `Page ${i} table detection`);
 
                 // Build content with images inserted at gaps
                 let imageIndex = 0;
@@ -1110,6 +1294,7 @@
                 }
 
                 // Group lines into blocks (paragraphs, tables, headings)
+                Logger.time('paragraphs', `Page ${i} block grouping`);
                 const blocks = [];
                 let currentParagraph = [];
                 let lastLineY = null;
@@ -1153,6 +1338,8 @@
                             const maxFontSize = Math.max(...line.items.map(it => it.height));
                             const isHeading = maxFontSize > 15;
                             const largeGap = lastLineY !== null && (lastLineY - line.pdfTop) > line.avgHeight * 2;
+                            const mediumGap = lastLineY !== null && (lastLineY - line.pdfTop) > line.avgHeight * 1.3;
+                            const anyGap = lastLineY !== null && (lastLineY - line.pdfTop) > line.avgHeight * 0.5;
 
                             // Check if line is indented (suggesting new paragraph)
                             const isIndented = line.items[0] && line.items[0].x > 100;
@@ -1161,7 +1348,51 @@
                             const prevLineEndsParagraph = currentParagraph.length > 0 &&
                                 /[.!?]\s*$/.test(currentParagraph[currentParagraph.length - 1].items[currentParagraph[currentParagraph.length - 1].items.length - 1]?.text || '');
 
-                            const isNewParagraph = largeGap || (prevLineEndsParagraph && isIndented);
+                            // Check for font size change between lines (indicates different sections)
+                            const prevMaxFontSize = currentParagraph.length > 0 ?
+                                Math.max(...currentParagraph[currentParagraph.length - 1].items.map(it => it.height)) : 0;
+                            const fontSizeChanged = currentParagraph.length > 0 && Math.abs(maxFontSize - prevMaxFontSize) > 1;
+
+                            // Check if previous line was very short (like an image caption or standalone header)
+                            const prevLineText = currentParagraph.length > 0 ?
+                                currentParagraph[currentParagraph.length - 1].items.map(it => it.text).join('').trim() : '';
+                            const prevLineShort = prevLineText.length < 60 && prevLineText.length > 0;
+
+                            // Check if current line is very short (could be a standalone element)
+                            const currentLineText = line.items.map(it => it.text).join('').trim();
+                            const currentLineShort = currentLineText.length < 60;
+
+                            // Check if current line ends with punctuation
+                            const endsWithPunctuation = /[.!?:;]\s*$/.test(currentLineText);
+
+                            // Detect standalone section headers (short lines that look like titles)
+                            const isStandaloneHeader = currentLineShort &&
+                                currentLineText.length > 3 &&
+                                !endsWithPunctuation &&
+                                !/^(The|A|An|In|On|At|From|To|For|By|With)\s/.test(currentLineText) &&
+                                currentLineText === currentLineText.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+
+                            // Detect page headers/footers (short lines with page numbers, "Part", "Chapter", etc.)
+                            const isPageHeader = currentLineShort && (
+                                /^(\d+\s*)?(Part|Chapter|Section).*[•|]/.test(currentLineText) ||
+                                /^\d+\s+(Part|Chapter|Section)\s+[IVX\d]+/.test(currentLineText) ||
+                                (line.items.some(it => /Part|Chapter|Section/i.test(it.text)) &&
+                                 line.items.some(it => /^[•|]$/.test(it.text.trim())))
+                            );
+                            const wasPrevPageHeader = currentParagraph.length > 0 && prevLineShort && (
+                                /^(\d+\s*)?(Part|Chapter|Section).*[•|]/.test(prevLineText) ||
+                                /^\d+\s+(Part|Chapter|Section)\s+[IVX\d]+/.test(prevLineText) ||
+                                (currentParagraph[currentParagraph.length - 1].items.some(it => /Part|Chapter|Section/i.test(it.text)) &&
+                                 currentParagraph[currentParagraph.length - 1].items.some(it => /^[•|]$/.test(it.text.trim())))
+                            );
+
+                            const isNewParagraph = largeGap ||
+                                                  (prevLineEndsParagraph && isIndented) ||
+                                                  fontSizeChanged ||
+                                                  (mediumGap && prevLineShort) ||
+                                                  (anyGap && wasPrevPageHeader) ||
+                                                  isPageHeader ||
+                                                  isStandaloneHeader;
 
                             if ((isNewParagraph || isHeading) && currentParagraph.length > 0) {
                                 blocks.push({ type: 'paragraph', lines: currentParagraph });
@@ -1183,6 +1414,17 @@
                         blocks.push({ type: 'paragraph', lines: currentParagraph });
                     }
                 }
+
+                Logger.timeEnd('paragraphs', `Page ${i} block grouping`);
+
+                const blockSummary = {
+                    paragraphs: blocks.filter(b => b.type === 'paragraph').length,
+                    tables: blocks.filter(b => b.type === 'table').length,
+                    images: blocks.filter(b => b.type === 'image').length,
+                    total: blocks.length
+                };
+
+                Logger.log('paragraphs', `Page ${i} - Block summary:`, blockSummary);
 
 
                 // Render blocks
@@ -1251,7 +1493,7 @@
                             pageHtml += `<${headingTag} style="margin: ${marginTop} 0 0.5em 0; line-height: 1.3;">${headingText}</${headingTag}>`;
                         } else {
                             // Render as paragraph with proper line structure
-                            pageHtml += `<div style="margin-bottom: 1em; line-height: 1.6;">`;
+                            pageHtml += `<div style="margin-bottom: 1em; line-height: 1.6; white-space: pre-wrap;">`;
 
                             block.lines.forEach((line, lineIdx) => {
                                 let lineText = '';
@@ -1262,6 +1504,18 @@
                                 const isBullet = /^[\u2022\u2023\u25E6\u2043\u2219\-\*]/.test(firstText) ||
                                                 /^[0-9]+[.)]/.test(firstText) ||
                                                 /^[a-z][.)]/.test(firstText);
+
+                                // Calculate indentation from left margin
+                                const leftX = line.minX;
+                                const baseMargin = Math.min(...block.lines.map(l => l.minX));
+                                const relativeIndent = leftX - baseMargin;
+                                const indentSpaces = Math.round(relativeIndent / 6); // Approximate spaces based on x-offset
+
+                                // Detect definition terms: first item has different font and is short
+                                const hasDefinitionTerm = lineItems.length > 1 &&
+                                    lineItems[0].fontName !== lineItems[1].fontName &&
+                                    lineItems[0].text.trim().length < 50 &&
+                                    lineItems[0].text.trim().length > 2;
 
                                 lineItems.forEach((item, idx) => {
                                     const isBold = item.fontName.toLowerCase().includes('bold') ||
@@ -1277,8 +1531,17 @@
                                     if (isItalic) styles.push('font-style: italic');
 
                                     const needsSpace = !item.text.endsWith(' ') && idx < lineItems.length - 1;
-                                    lineText += `<span style="${styles.join('; ')}">${item.text}${needsSpace ? ' ' : ''}</span>`;
+
+                                    // If this is a definition term (first item with different font), add line break after it
+                                    if (hasDefinitionTerm && idx === 0) {
+                                        lineText += `<span style="${styles.join('; ')}">${item.text}</span>\n`;
+                                    } else {
+                                        lineText += `<span style="${styles.join('; ')}">${item.text}${needsSpace ? ' ' : ''}</span>`;
+                                    }
                                 });
+
+                                // Add indentation if present
+                                const indentation = indentSpaces > 0 ? ' '.repeat(indentSpaces) : '';
 
                                 // Check if this line ends a sentence or should break
                                 const endsWithPunctuation = /[.!?:;]\s*$/.test(lineItems[lineItems.length - 1]?.text || '');
@@ -1286,14 +1549,18 @@
                                     /^[\u2022\u2023\u25E6\u2043\u2219\-\*]/.test(block.lines[lineIdx + 1]?.items[0]?.text.trim() || '') ||
                                     /^[0-9]+[.)]/.test(block.lines[lineIdx + 1]?.items[0]?.text.trim() || '');
 
+                                // Check if the next line is significantly indented (suggests new paragraph)
+                                const nextLineIndented = lineIdx < block.lines.length - 1 &&
+                                    (block.lines[lineIdx + 1].minX - baseMargin) > 20;
+
                                 if (isBullet) {
-                                    // Render as list item
-                                    pageHtml += `<div style="margin-left: 1.5em; text-indent: -1em; margin-bottom: 0.3em;">${lineText}</div>`;
-                                } else if (endsWithPunctuation || nextLineIsBullet || lineIdx === block.lines.length - 1) {
+                                    // Render as list item with indentation preserved
+                                    pageHtml += `${indentation}${lineText}\n`;
+                                } else if (endsWithPunctuation || nextLineIsBullet || nextLineIndented || lineIdx === block.lines.length - 1) {
                                     // Complete sentence or last line - add line break
-                                    pageHtml += `${lineText}<br>`;
+                                    pageHtml += `${indentation}${lineText}\n`;
                                 } else {
-                                    // Continuation - add space
+                                    // Continuation within same line - no line break, just space
                                     pageHtml += `${lineText} `;
                                 }
                             });
@@ -1304,23 +1571,42 @@
                 });                pageHtml += `</div>`;
                 pages.push(pageHtml);
                 html += pageHtml;
+
+                Logger.timeEnd('performance', `Page ${i} processing`);
+                Logger.log('performance', `Page ${i} - Processing complete`);
+                Logger.groupEnd('pdfElements');
             }
+
+            Logger.timeEnd('performance', 'PDF Conversion');
+            Logger.log('performance', `PDF conversion complete - Total pages: ${pages.length}`);
 
             return { pages, html: html || '<p>No text content found in PDF</p>' };
         }
 
         async function convertWord(file) {
+            Logger.time('performance', 'Word Document Conversion');
+            Logger.log('performance', `Starting Word conversion: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
+
             const arrayBuffer = await file.arrayBuffer();
             const result = await mammoth.convertToHtml({ arrayBuffer });
             const htmlContent = result.value || '<p>No content found in document</p>';
 
+            Logger.log('wordPaging', `Word document converted to HTML (${htmlContent.length} characters)`);
+
             // Split content into pages (approximate page breaks)
+            Logger.time('wordPaging', 'Page splitting');
             const pages = splitHtmlIntoPages(htmlContent);
+            Logger.timeEnd('wordPaging', 'Page splitting');
+
+            Logger.log('wordPaging', `Word document split into ${pages.length} pages`);
+            Logger.timeEnd('performance', 'Word Document Conversion');
 
             return { pages, html: htmlContent };
         }
 
         function splitHtmlIntoPages(html) {
+            Logger.log('wordPaging', 'Starting HTML page splitting...');
+
             // Create a temporary div to parse the HTML
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = html;
@@ -1336,6 +1622,8 @@
 
             const children = Array.from(tempDiv.children);
 
+            Logger.log('wordPaging', `Processing ${children.length} HTML elements`);
+
             children.forEach((element, idx) => {
                 const clone = element.cloneNode(true);
                 const testDiv = document.createElement('div');
@@ -1349,6 +1637,12 @@
                 // Check if adding this element would exceed page height
                 if (currentHeight + elementHeight > maxPageHeight && currentPage.length > 0) {
                     // Save current page with page header
+                    Logger.log('wordPaging', `Page ${pageNumber} complete:`, {
+                        elements: currentPage.split('<').length - 1,
+                        height: currentHeight,
+                        maxHeight: maxPageHeight
+                    });
+
                     const pageWithHeader = `<div style="margin-bottom: 2em;">
                         <div style="font-size: 10px; color: #999; margin-bottom: 1em; border-bottom: 1px solid #ddd; padding-bottom: 0.5em;">Page ${pageNumber}</div>
                         ${currentPage}
@@ -1365,6 +1659,11 @@
 
             // Add the last page with page header
             if (currentPage.length > 0) {
+                Logger.log('wordPaging', `Page ${pageNumber} (final) complete:`, {
+                    elements: currentPage.split('<').length - 1,
+                    height: currentHeight
+                });
+
                 const pageWithHeader = `<div style="margin-bottom: 2em;">
                     <div style="font-size: 10px; color: #999; margin-bottom: 1em; border-bottom: 1px solid #ddd; padding-bottom: 0.5em;">Page ${pageNumber}</div>
                     ${currentPage}
@@ -1373,6 +1672,8 @@
             }
 
             document.body.removeChild(tempDiv);
+
+            Logger.log('wordPaging', `Total pages created: ${pages.length}`);
 
             return pages.length > 0 ? pages : [html];
         }
