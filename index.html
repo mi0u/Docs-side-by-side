@@ -250,6 +250,14 @@
             font-weight: bold;
         }
 
+        .current-match {
+            background-color: #ff6600 !important;
+            color: white !important;
+            font-weight: bold;
+            padding: 2px 0;
+            border-radius: 2px;
+        }
+
         .font-adjust-btn:hover {
             background: rgba(255,255,255,0.3);
             border-color: rgba(255,255,255,0.8);
@@ -579,15 +587,20 @@
             let searchMatches = [];
             let currentMatchIndex = -1;
             let lastSearchTerm = ''; // Track last search term
+            let isLoadingPagesForSearch = false; // Prevent multiple page loads during search navigation
+            let skipSearchOnPageChange = false; // Skip re-search when navigating from search results
 
-            // Page navigation handlers
+            // Search index database
+            let pageTextIndex = []; // Array of {pageIndex, text} for each page
+            let isIndexing = false; // Flag to track background indexing
+            let indexingComplete = false; // Flag to track if indexing is done            // Page navigation handlers
             firstPageBtn.addEventListener('click', () => goToPage(0));
             prevPageBtn.addEventListener('click', () => goToPage(currentPage - 1));
             nextPageBtn.addEventListener('click', () => goToPage(currentPage + 1));
             lastPageBtn.addEventListener('click', () => goToPage(pdfPages.length - 1));
             pageSelect.addEventListener('change', (e) => goToPage(parseInt(e.target.value)));
 
-            function goToPage(pageIndex) {
+            async function goToPage(pageIndex) {
                 if (pageIndex < 0 || pageIndex >= pdfPages.length) return;
 
                 // Set navigation flag to prevent observer interference
@@ -597,7 +610,8 @@
                 // Scroll to the page
                 const pageElement = content.querySelector(`#page${panelNum}-${pageIndex}`);
                 if (pageElement) {
-                    pageElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    // Use instant scroll to avoid timing issues with IntersectionObserver
+                    pageElement.scrollIntoView({ behavior: 'instant', block: 'start' });
 
                     // Trigger re-render to ensure this page and its buffer are rendered
                     const panelApi = window[`panel${panelNum}Api`];
@@ -606,19 +620,27 @@
                         setTimeout(() => {
                             panelApi.rerenderVisiblePages();
                             // Clear navigation flag after rendering completes
-                            setTimeout(() => { isNavigating = false; }, 500);
-                        }, 100);
+                            setTimeout(() => { isNavigating = false; }, 300);
+                        }, 50);
                     } else {
                         // Clear navigation flag if no rerender needed
-                        setTimeout(() => { isNavigating = false; }, 500);
+                        setTimeout(() => { isNavigating = false; }, 100);
                     }
                 }
 
                 updatePageNav();
 
-                // Re-run search to prioritize matches in new page
-                if (searchInput.value.trim().length > 0) {
-                    performSearch();
+                // Re-run search to prioritize matches in new page (unless navigating from search)
+                if (!skipSearchOnPageChange) {
+                    const searchTerm = searchInput.value.trim();
+                    if (searchTerm.length > 0) {
+                        // Force re-search to update match priorities for new current page
+                        lastSearchTerm = '';
+                        await performSearch();
+                    }
+                } else {
+                    // Reset flag for next navigation
+                    skipSearchOnPageChange = false;
                 }
             }
 
@@ -672,23 +694,8 @@
 
                 if (!docContent) return;
 
-                // If searching and we have lazy-loaded pages, ensure all pages are loaded
-                const wasLazyLoaded = documentType === 'pdf' && pdfDocument;
-                const needsFullRender = wasLazyLoaded && searchTerm.length > 0 && searchMatches.length === 0;
-
-                if (needsFullRender) {
-                    Logger.log('performance', `Panel ${panelNum} - Loading all pages for search`);
-                    for (let i = 0; i < rawPageData.length; i++) {
-                        if (rawPageData[i] === null) {
-                            rawPageData[i] = await convertPDFPage(pdfDocument, i + 1);
-                        }
-                    }
-                    // Render all pages
-                    await renderAllPagesForSearch();
-                    // Get docContent again after re-rendering
-                    docContent = content.querySelector('.document-content');
-                    if (!docContent) return;
-                }
+                // Search only in currently rendered (loaded) pages
+                // Do NOT load all pages - keep lazy loading approach
 
                 // Remove previous highlights
                 const highlighted = docContent.querySelectorAll('.highlight');
@@ -773,7 +780,7 @@
                 });
 
                 if (searchMatches.length > 0) {
-                    // Find the first match in or after the current page
+                    // Prioritize matches in current page, then forward, then backward
                     const currentPageElement = pdfPages.length > 0 ?
                         content.querySelector(`#page${panelNum}-${currentPage}`) : null;
 
@@ -787,7 +794,7 @@
                             // Start with first match in current page
                             currentMatchIndex = searchMatches.indexOf(matchesInCurrentPage[0]);
                         } else {
-                            // Find first match after current page
+                            // Find first match in loaded pages after current page
                             let foundAfter = false;
                             for (let i = 0; i < searchMatches.length; i++) {
                                 const matchPage = getPageForElement(searchMatches[i]);
@@ -797,7 +804,7 @@
                                     break;
                                 }
                             }
-                            // If no match after, start from beginning
+                            // If no match after, start from first match
                             if (!foundAfter) {
                                 currentMatchIndex = 0;
                             }
@@ -809,6 +816,39 @@
 
                     scrollToMatch();
                 }
+
+                // Update search info display
+                updateSearchInfo();
+            }
+
+            function updateSearchInfo() {
+                // Optional: Display search results count
+                if (searchMatches.length > 0) {
+                    console.log(`Found ${searchMatches.length} matches in loaded pages (match ${currentMatchIndex + 1})`);
+                }
+            }
+
+            // Load pages around a specific page index for search navigation
+            async function ensurePageLoaded(pageIndex) {
+                if (pageIndex < 0 || pageIndex >= rawPageData.length) return false;
+
+                if (documentType === 'pdf' && pdfDocument && rawPageData[pageIndex] === null) {
+                    Logger.log('performance', `Panel ${panelNum} - Loading page ${pageIndex + 1} for search navigation`);
+                    rawPageData[pageIndex] = await convertPDFPage(pdfDocument, pageIndex + 1);
+
+                    // Re-render visible range to include this page
+                    await renderVisiblePages();
+
+                    // Re-run search to include newly loaded page
+                    const searchTerm = searchInput.value.trim();
+                    if (searchTerm.length > 0) {
+                        lastSearchTerm = ''; // Force re-search
+                        await performSearch();
+                    }
+
+                    return true;
+                }
+                return false;
             }
 
             function getPageForElement(element) {
@@ -842,19 +882,222 @@
                 });
 
                 return closestIndex;
-            }            function navigateMatch(direction) {
+            }
+
+            // Background indexing function - extract ONLY text from PDF pages (no HTML rendering)
+            async function buildSearchIndex() {
+                if (isIndexing || indexingComplete) return;
+                if (!pdfDocument || documentType !== 'pdf') return;
+
+                isIndexing = true;
+                Logger.log('performance', `Panel ${panelNum} - Starting background text extraction for ${pdfDocument.numPages} pages`);
+
+                pageTextIndex = [];
+
+                // Extract text directly from PDF pages (no HTML conversion)
+                for (let i = 1; i <= pdfDocument.numPages; i++) {
+                    try {
+                        const page = await pdfDocument.getPage(i);
+                        const textContent = await page.getTextContent();
+
+                        // Combine all text items into a single string
+                        const pageText = textContent.items.map(item => item.str).join(' ');
+
+                        pageTextIndex.push({
+                            pageIndex: i - 1, // Store as 0-based index
+                            text: pageText
+                        });
+
+                        // Log progress every 10 pages
+                        if (i % 10 === 0) {
+                            Logger.log('performance', `Panel ${panelNum} - Extracted text from ${i}/${pdfDocument.numPages} pages`);
+                        }
+
+                        // Small delay to not block UI
+                        if (i % 5 === 0) {
+                            await new Promise(resolve => setTimeout(resolve, 10));
+                        }
+                    } catch (error) {
+                        Logger.log('performance', `Panel ${panelNum} - Error extracting text from page ${i}: ${error.message}`);
+                        // Add empty entry to maintain index
+                        pageTextIndex.push({
+                            pageIndex: i - 1,
+                            text: ''
+                        });
+                    }
+                }
+
+                indexingComplete = true;
+                isIndexing = false;
+                Logger.log('performance', `Panel ${panelNum} - Background text extraction complete. Indexed ${pageTextIndex.length} pages`);
+            }
+
+            // Search using the index and navigate to page with match
+            async function searchInIndex(searchTerm, direction) {
+                if (!indexingComplete || pageTextIndex.length === 0) {
+                    Logger.log('performance', `Panel ${panelNum} - Index not ready, searching visible pages only`);
+                    return null; // Fall back to old search
+                }
+
+                const escapedTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regex = new RegExp(escapedTerm, 'gi');
+
+                // Find pages with matches
+                const pagesWithMatches = [];
+                for (const pageData of pageTextIndex) {
+                    if (regex.test(pageData.text)) {
+                        pagesWithMatches.push(pageData.pageIndex);
+                    }
+                    regex.lastIndex = 0; // Reset regex
+                }
+
+                if (pagesWithMatches.length === 0) {
+                    Logger.log('performance', `Panel ${panelNum} - No matches found in document`);
+                    return null;
+                }
+
+                Logger.log('performance', `Panel ${panelNum} - Found matches in ${pagesWithMatches.length} pages`);
+
+                // Find next/previous page with match based on current page and direction
+                let targetPage = null;
+
+                if (direction > 0) {
+                    // Find first page with match after current page
+                    targetPage = pagesWithMatches.find(p => p > currentPage);
+                    if (!targetPage) {
+                        // Wrap to first page with match
+                        targetPage = pagesWithMatches[0];
+                    }
+                } else {
+                    // Find last page with match before current page
+                    const reversed = [...pagesWithMatches].reverse();
+                    targetPage = reversed.find(p => p < currentPage);
+                    if (targetPage === undefined) {
+                        // Wrap to last page with match
+                        targetPage = pagesWithMatches[pagesWithMatches.length - 1];
+                    }
+                }
+
+                return targetPage;
+            }
+
+            async function navigateMatch(direction) {
                 if (searchMatches.length === 0) return;
-                currentMatchIndex = (currentMatchIndex + direction + searchMatches.length) % searchMatches.length;
+
+                // Prevent multiple simultaneous page loads during search
+                if (isLoadingPagesForSearch) {
+                    Logger.log('performance', `Panel ${panelNum} - Search navigation blocked: already loading pages`);
+                    return;
+                }
+
+                // Calculate next match index
+                let nextIndex = currentMatchIndex + direction;
+
+                // Check if we can navigate within currently loaded pages
+                if (nextIndex >= 0 && nextIndex < searchMatches.length) {
+                    // We have a match in loaded pages, navigate to it
+                    currentMatchIndex = nextIndex;
+                    scrollToMatch();
+                    return;
+                }
+
+                // We've reached the end of matches in loaded pages
+                // Now check the index database for more pages with matches
+                if (documentType === 'pdf' && pdfDocument && indexingComplete) {
+                    const searchTerm = searchInput.value.trim();
+                    if (searchTerm.length === 0) {
+                        // No search term, just wrap around
+                        currentMatchIndex = direction > 0 ? 0 : searchMatches.length - 1;
+                        scrollToMatch();
+                        return;
+                    }
+
+                    // Use index to find next page with match
+                    const targetPage = await searchInIndex(searchTerm, direction);
+
+                    if (targetPage !== null && targetPage !== currentPage) {
+                        // Found a page with matches, navigate to it
+                        isLoadingPagesForSearch = true;
+
+                        try {
+                            Logger.log('performance', `Panel ${panelNum} - Navigating to page ${targetPage + 1} with matches`);
+
+                            // Set flag to skip re-search on navigation
+                            skipSearchOnPageChange = true;
+
+                            // Navigate to the page (this will load it dynamically)
+                            await goToPage(targetPage);
+
+                            // Wait for page to render
+                            await new Promise(resolve => setTimeout(resolve, 400));
+
+                            // Manually ensure the target page is rendered
+                            const panelApi = window[`panel${panelNum}Api`];
+                            if (panelApi && panelApi.rerenderVisiblePages) {
+                                await panelApi.rerenderVisiblePages();
+                                await new Promise(resolve => setTimeout(resolve, 300));
+                            }
+
+                            // Now manually search in the newly rendered pages
+                            const pageElement = content.querySelector(`#page${panelNum}-${targetPage}`);
+                            if (pageElement) {
+                                // Force re-search to find matches in newly loaded page
+                                lastSearchTerm = '';
+                                await performSearch();
+
+                                // Find matches in the target page
+                                const matchesInPage = searchMatches.filter(match => {
+                                    const pageEl = content.querySelector(`#page${panelNum}-${targetPage}`);
+                                    return pageEl && pageEl.contains(match);
+                                });
+
+                                if (matchesInPage.length > 0) {
+                                    if (direction > 0) {
+                                        // Going forward: select first match on page
+                                        currentMatchIndex = searchMatches.indexOf(matchesInPage[0]);
+                                    } else {
+                                        // Going backward: select last match on page
+                                        currentMatchIndex = searchMatches.indexOf(matchesInPage[matchesInPage.length - 1]);
+                                    }
+
+                                    // Clear flag before scrolling since we're done
+                                    isLoadingPagesForSearch = false;
+                                    skipSearchOnPageChange = false;
+
+                                    scrollToMatch();
+                                    return;
+                                } else {
+                                    Logger.log('performance', `Panel ${panelNum} - No matches found on page ${targetPage + 1} after loading`);
+                                }
+                            }
+                        } finally {
+                            // Always clear flags
+                            isLoadingPagesForSearch = false;
+                            skipSearchOnPageChange = false;
+                        }
+                    } else {
+                        Logger.log('performance', `Panel ${panelNum} - No more pages with matches, wrapping around`);
+                    }
+                }
+
+                // Fallback: wrap around to beginning or end
+                currentMatchIndex = direction > 0 ? 0 : searchMatches.length - 1;
                 scrollToMatch();
             }
 
             function scrollToMatch() {
                 if (currentMatchIndex >= 0 && currentMatchIndex < searchMatches.length) {
+                    // Remove current-match class from all matches
+                    searchMatches.forEach(match => match.classList.remove('current-match'));
+
+                    // Add current-match class to the active match
+                    searchMatches[currentMatchIndex].classList.add('current-match');
+
                     // Temporarily set navigation flag to prevent observer interference
                     isNavigating = true;
-                    searchMatches[currentMatchIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    // Clear flag after scroll animation
-                    setTimeout(() => { isNavigating = false; }, 800);
+                    searchMatches[currentMatchIndex].scrollIntoView({ behavior: 'instant', block: 'center' });
+                    // Clear flag after instant scroll
+                    setTimeout(() => { isNavigating = false; }, 100);
                 }
             }
 
@@ -930,6 +1173,8 @@
 
             // Observe page visibility and render on-demand
             let pageObserver = null;
+            let renderTimeout = null;
+
             function setupPageObserver() {
                 if (pageObserver) {
                     pageObserver.disconnect();
@@ -947,10 +1192,15 @@
                                 updatePageNav();
                             }
 
-                            // If this is a placeholder, trigger re-render
+                            // If this is a placeholder, trigger re-render with debounce
                             if (pageElement.classList.contains('pdf-page-placeholder')) {
-                                Logger.log('performance', `Panel ${panelNum} - User scrolled to page ${pageIndex}, re-rendering visible range`);
-                                renderVisiblePages();
+                                Logger.log('performance', `Panel ${panelNum} - User scrolled to page ${pageIndex}, scheduling re-render`);
+
+                                // Debounce rendering to avoid continuous re-renders during scroll
+                                if (renderTimeout) clearTimeout(renderTimeout);
+                                renderTimeout = setTimeout(() => {
+                                    renderVisiblePages();
+                                }, 200);
                             }
                         }
                     });
@@ -1019,6 +1269,21 @@
                 content.innerHTML = allPagesHtml;
 
                 setupPageObserver();
+
+                // Re-apply search highlights if there's an active search
+                const searchTerm = searchInput.value.trim();
+                if (searchTerm.length > 0 && lastSearchTerm === searchTerm) {
+                    // Force re-search to restore highlights
+                    const savedMatchIndex = currentMatchIndex;
+                    lastSearchTerm = '';
+                    await performSearch();
+
+                    // Restore the current match index and apply highlighting
+                    if (savedMatchIndex >= 0 && savedMatchIndex < searchMatches.length) {
+                        currentMatchIndex = savedMatchIndex;
+                        scrollToMatch();
+                    }
+                }
             }
 
             // Render all pages for search functionality
@@ -1051,6 +1316,11 @@
                     rawPageData = new Array(numPages).fill(null); // Will be loaded on-demand
                     currentPage = 0;
 
+                    // Reset search index
+                    pageTextIndex = [];
+                    indexingComplete = false;
+                    isIndexing = false;
+
                     // Setup page selector
                     pageSelect.innerHTML = '';
                     for (let i = 0; i < numPages; i++) {
@@ -1065,6 +1335,11 @@
 
                     // Render only visible pages
                     await renderVisiblePages();
+
+                    // Start background indexing after initial render
+                    setTimeout(() => {
+                        buildSearchIndex();
+                    }, 100);
                 },
                 setAllPages: (pages, fullHtml) => {
                     rawPageData = pages; // Store raw, unadjusted HTML
