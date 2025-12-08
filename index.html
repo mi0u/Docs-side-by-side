@@ -395,6 +395,7 @@
                             <input type="text" class="search-input" id="searchInput1" placeholder="Search...">
                             <button class="search-btn" id="searchPrev1" title="Previous match">↑</button>
                             <button class="search-btn" id="searchNext1" title="Next match">↓</button>
+                            <div class="page-info" id="searchInfo1" style="display: none; font-size: 0.75em; min-width: 60px;">0/0</div>
                         </div>
                         <div class="control-group">
                             <label class="control-label">Font:</label>
@@ -430,6 +431,7 @@
                             <input type="text" class="search-input" id="searchInput2" placeholder="Search...">
                             <button class="search-btn" id="searchPrev2" title="Previous match">↑</button>
                             <button class="search-btn" id="searchNext2" title="Next match">↓</button>
+                            <div class="page-info" id="searchInfo2" style="display: none; font-size: 0.75em; min-width: 60px;">0/0</div>
                         </div>
                         <div class="control-group">
                             <label class="control-label">Font:</label>
@@ -527,12 +529,15 @@
             const searchInput = document.getElementById(`searchInput${panelNum}`);
             const searchPrevBtn = document.getElementById(`searchPrev${panelNum}`);
             const searchNextBtn = document.getElementById(`searchNext${panelNum}`);
+            const searchInfo = document.getElementById(`searchInfo${panelNum}`);
 
             let fontAdjustment = 0, pdfPages = [], currentPage = 0;
             let searchMatches = [], currentMatchIndex = -1, lastSearchTerm = '';
             let skipSearchOnPageChange = false;
             let pageTextIndex = [], isIndexing = false, indexingComplete = false;
             let rawPageData = [], pdfDocument = null, documentType = null, isNavigating = false;
+            let isLoadingFromIndexSearch = false;
+            let globalMatchPosition = 0, totalMatchesInDocument = 0;
 
             // Page navigation handlers
             firstPageBtn.addEventListener('click', () => goToPage(0));
@@ -571,8 +576,8 @@
 
                 updatePageNav();
 
-                // Re-run search to prioritize matches in new page (unless navigating from search)
-                if (!skipSearchOnPageChange) {
+                // Re-run search to prioritize matches in new page (unless navigating from search or index search)
+                if (!skipSearchOnPageChange && !isLoadingFromIndexSearch) {
                     const searchTerm = searchInput.value.trim();
                     if (searchTerm.length > 0) {
                         // Force re-search to update match priorities for new current page
@@ -724,7 +729,8 @@
                     scrollToMatch();
                 } else {
                     // No matches found in loaded pages - check the index database for PDFs
-                    if (documentType === 'pdf' && pdfDocument && indexingComplete && searchTerm.length > 0) {
+                    // BUT: Don't trigger index search if we're already in the middle of loading from index search
+                    if (!isLoadingFromIndexSearch && documentType === 'pdf' && pdfDocument && indexingComplete && searchTerm.length > 0) {
                         Logger.log('performance', `Panel ${panelNum} - No matches in loaded pages, searching index database...`);
 
                         const escapedTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -748,20 +754,47 @@
                                 targetPage = pagesWithMatches[0]; // Wrap to first match
                             }
 
-                            // Load the page and perform search again
-                            skipSearchOnPageChange = true;
-                            await goToPage(targetPage);
+                            // Check if we're already on the target page
+                            if (targetPage === currentPage) {
+                                Logger.log('performance', `Panel ${panelNum} - Already on target page, ensuring it's loaded`);
+                                // Just ensure the page is loaded and re-render
+                                isLoadingFromIndexSearch = true;
+                                await ensurePageLoaded(targetPage);
+                                await renderVisiblePages();
+                                // Wait for rendering, then re-search
+                                setTimeout(async () => {
+                                    lastSearchTerm = ''; // Force re-search
+                                    await performSearch();
+                                    isLoadingFromIndexSearch = false;
+                                }, 300);
+                            } else {
+                                // Set flag to prevent automatic re-search during page load
+                                isLoadingFromIndexSearch = true;
+                                skipSearchOnPageChange = true;
 
-                            // Wait a bit for page to render, then re-search
-                            setTimeout(async () => {
-                                lastSearchTerm = ''; // Force re-search
-                                await performSearch();
-                            }, 200);
+                                // Ensure the page is loaded first
+                                await ensurePageLoaded(targetPage);
+
+                                // Navigate to the page
+                                await goToPage(targetPage);
+
+                                // Wait for rendering to complete, then re-search once
+                                setTimeout(async () => {
+                                    lastSearchTerm = ''; // Force re-search
+                                    await performSearch();
+                                    isLoadingFromIndexSearch = false; // Clear flag after re-search
+                                }, 500);
+                            }
                         } else {
                             Logger.log('performance', `Panel ${panelNum} - No matches found in entire document`);
+                            updateSearchInfo();
                         }
                     } else if (documentType === 'pdf' && pdfDocument && !indexingComplete && searchTerm.length > 0) {
                         Logger.log('performance', `Panel ${panelNum} - No matches in loaded pages. Index still building...`);
+                        updateSearchInfo();
+                    } else {
+                        // Not a PDF or other condition - just update the info
+                        updateSearchInfo();
                     }
                 }
 
@@ -773,10 +806,13 @@
                     Logger.log('performance', `Panel ${panelNum} - Loading page ${pageIndex + 1}`);
                     rawPageData[pageIndex] = await convertPDFPage(pdfDocument, pageIndex + 1);
                     await renderVisiblePages();
-                    const searchTerm = searchInput.value.trim();
-                    if (searchTerm.length > 0) {
-                        lastSearchTerm = '';
-                        await performSearch();
+                    // Only re-search if not loading from index search (to avoid loops)
+                    if (!isLoadingFromIndexSearch) {
+                        const searchTerm = searchInput.value.trim();
+                        if (searchTerm.length > 0) {
+                            lastSearchTerm = '';
+                            await performSearch();
+                        }
                     }
                 }
             }
@@ -1014,6 +1050,84 @@
                     // Clear flag after instant scroll
                     setTimeout(() => { isNavigating = false; }, 100);
                 }
+
+                updateSearchInfo();
+            }
+
+            // Count total matches across entire document using index
+            function countTotalMatches(searchTerm) {
+                if (!searchTerm || searchTerm.length === 0) return 0;
+
+                // For PDFs with completed index, count matches in the index
+                if (documentType === 'pdf' && indexingComplete && pageTextIndex.length > 0) {
+                    const escapedTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    const regex = new RegExp(escapedTerm, 'gi');
+
+                    let totalMatches = 0;
+                    for (const pageData of pageTextIndex) {
+                        const matches = pageData.text.match(regex);
+                        if (matches) {
+                            totalMatches += matches.length;
+                        }
+                    }
+
+                    return totalMatches;
+                }
+
+                // Fallback: return loaded page matches only
+                return searchMatches.length;
+            }
+
+            // Calculate global match position (which match # out of total in document)
+            function calculateGlobalMatchPosition() {
+                if (currentMatchIndex < 0 || searchMatches.length === 0) return 0;
+
+                const searchTerm = searchInput.value.trim();
+                if (!searchTerm || documentType !== 'pdf' || !indexingComplete) {
+                    return currentMatchIndex + 1;
+                }
+
+                const escapedTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regex = new RegExp(escapedTerm, 'gi');
+
+                // Count matches in pages before current page
+                let matchesBefore = 0;
+                for (let i = 0; i < currentPage; i++) {
+                    if (i < pageTextIndex.length) {
+                        const matches = pageTextIndex[i].text.match(regex);
+                        if (matches) {
+                            matchesBefore += matches.length;
+                        }
+                    }
+                }
+
+                // Add the position within current page
+                return matchesBefore + currentMatchIndex + 1;
+            }
+
+            function updateSearchInfo() {
+                const searchTerm = searchInput.value.trim();
+
+                if (searchMatches.length > 0) {
+                    // Calculate global position and total
+                    globalMatchPosition = calculateGlobalMatchPosition();
+                    totalMatchesInDocument = countTotalMatches(searchTerm);
+
+                    searchInfo.textContent = `${globalMatchPosition}/${totalMatchesInDocument}`;
+                    searchInfo.style.display = 'block';
+                } else if (searchTerm.length > 0) {
+                    // No matches in loaded pages, but check if there are any in the document
+                    totalMatchesInDocument = countTotalMatches(searchTerm);
+
+                    if (totalMatchesInDocument > 0) {
+                        searchInfo.textContent = `0/${totalMatchesInDocument}`;
+                    } else {
+                        searchInfo.textContent = '0/0';
+                    }
+                    searchInfo.style.display = 'block';
+                } else {
+                    searchInfo.style.display = 'none';
+                }
             }
 
             uploadArea.addEventListener('click', () => fileInput.click());
@@ -1058,6 +1172,11 @@
                 pdfPages = [];
                 currentPage = 0;
                 pageNav.style.display = 'none';
+                searchInput.value = '';
+                searchMatches = [];
+                currentMatchIndex = -1;
+                lastSearchTerm = '';
+                updateSearchInfo();
                 window[`panel${panelNum}Api`]?.setContent?.('');
             });
 
@@ -1133,15 +1252,17 @@
 
                 setupPageObserver();
 
-                // Re-apply search highlights if active
-                const searchTerm = searchInput.value.trim();
-                if (searchTerm.length > 0 && lastSearchTerm === searchTerm) {
-                    const savedMatchIndex = currentMatchIndex;
-                    lastSearchTerm = '';
-                    await performSearch();
-                    if (savedMatchIndex >= 0 && savedMatchIndex < searchMatches.length) {
-                        currentMatchIndex = savedMatchIndex;
-                        scrollToMatch();
+                // Re-apply search highlights if active (but not when loading from index search)
+                if (!isLoadingFromIndexSearch) {
+                    const searchTerm = searchInput.value.trim();
+                    if (searchTerm.length > 0 && lastSearchTerm === searchTerm) {
+                        const savedMatchIndex = currentMatchIndex;
+                        lastSearchTerm = '';
+                        await performSearch();
+                        if (savedMatchIndex >= 0 && savedMatchIndex < searchMatches.length) {
+                            currentMatchIndex = savedMatchIndex;
+                            scrollToMatch();
+                        }
                     }
                 }
             }
