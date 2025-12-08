@@ -722,6 +722,47 @@
                     }
 
                     scrollToMatch();
+                } else {
+                    // No matches found in loaded pages - check the index database for PDFs
+                    if (documentType === 'pdf' && pdfDocument && indexingComplete && searchTerm.length > 0) {
+                        Logger.log('performance', `Panel ${panelNum} - No matches in loaded pages, searching index database...`);
+
+                        const escapedTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        const regex = new RegExp(escapedTerm, 'gi');
+
+                        // Find all pages with matches in the index
+                        const pagesWithMatches = [];
+                        for (const pageData of pageTextIndex) {
+                            if (regex.test(pageData.text)) {
+                                pagesWithMatches.push(pageData.pageIndex);
+                            }
+                            regex.lastIndex = 0; // Reset regex
+                        }
+
+                        if (pagesWithMatches.length > 0) {
+                            Logger.log('performance', `Panel ${panelNum} - Found matches in ${pagesWithMatches.length} pages via index`);
+
+                            // Navigate to first page with match (preferring pages after current, then wrapping)
+                            let targetPage = pagesWithMatches.find(p => p >= currentPage);
+                            if (targetPage === undefined) {
+                                targetPage = pagesWithMatches[0]; // Wrap to first match
+                            }
+
+                            // Load the page and perform search again
+                            skipSearchOnPageChange = true;
+                            await goToPage(targetPage);
+
+                            // Wait a bit for page to render, then re-search
+                            setTimeout(async () => {
+                                lastSearchTerm = ''; // Force re-search
+                                await performSearch();
+                            }, 200);
+                        } else {
+                            Logger.log('performance', `Panel ${panelNum} - No matches found in entire document`);
+                        }
+                    } else if (documentType === 'pdf' && pdfDocument && !indexingComplete && searchTerm.length > 0) {
+                        Logger.log('performance', `Panel ${panelNum} - No matches in loaded pages. Index still building...`);
+                    }
                 }
 
             }
