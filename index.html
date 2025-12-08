@@ -450,77 +450,24 @@
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-        // ==========================================
-        // LOGGING SYSTEM
-        // ==========================================
-        // To enable/disable logging:
-        // 1. Set DEBUG_CONFIG.enabled = false to disable ALL logging
-        // 2. Or disable specific areas by setting to false:
-        //    - pdfElements: Logs all PDF text/image elements with exact coordinates
-        //    - wordPaging: Logs Word document page splitting process
-        //    - tableFinding: Logs table detection and structure analysis
-        //    - imageFinding: Logs image extraction from PDFs
-        //    - textLayout: Logs text positioning, lines, and gaps
-        //    - columnDetection: Logs multi-column layout detection
-        //    - paragraphs: Logs paragraph and block grouping
-        //    - performance: Logs timing information
-        // ==========================================
+        // Debug configuration - set enabled: false to disable all logging
         const DEBUG_CONFIG = {
-            // Master switch - set to false to disable ALL logging
             enabled: true,
-
-            // Individual logging areas - enable/disable specific categories
             areas: {
-                pdfElements: true,      // Log PDF element locations and coordinates
-                wordPaging: true,       // Log Word document page splitting
-                tableFinding: true,     // Log table detection and analysis
-                imageFinding: true,     // Log image extraction
-                textLayout: true,       // Log text positioning and layout analysis
-                columnDetection: true,  // Log column/multi-column detection
-                paragraphs: true,       // Log paragraph and block detection
-                performance: true       // Log performance metrics
+                pdfElements: true, wordPaging: true, tableFinding: true, imageFinding: true,
+                textLayout: true, columnDetection: true, paragraphs: true, performance: true
             }
         };
 
-        // Logging utility functions
+        // Simplified logging utility
         const Logger = {
-            log(area, message, data = null) {
-                if (!DEBUG_CONFIG.enabled || !DEBUG_CONFIG.areas[area]) return;
-
-                const timestamp = new Date().toISOString().substr(11, 12);
-                const prefix = `[${timestamp}] [${area.toUpperCase()}]`;
-
-                if (data) {
-                    console.log(`${prefix} ${message}`, data);
-                } else {
-                    console.log(`${prefix} ${message}`);
-                }
-            },
-
-            group(area, title) {
-                if (!DEBUG_CONFIG.enabled || !DEBUG_CONFIG.areas[area]) return;
-                console.group(`[${area.toUpperCase()}] ${title}`);
-            },
-
-            groupEnd(area) {
-                if (!DEBUG_CONFIG.enabled || !DEBUG_CONFIG.areas[area]) return;
-                console.groupEnd();
-            },
-
-            table(area, data) {
-                if (!DEBUG_CONFIG.enabled || !DEBUG_CONFIG.areas[area]) return;
-                console.table(data);
-            },
-
-            time(area, label) {
-                if (!DEBUG_CONFIG.enabled || !DEBUG_CONFIG.areas[area]) return;
-                console.time(`[${area.toUpperCase()}] ${label}`);
-            },
-
-            timeEnd(area, label) {
-                if (!DEBUG_CONFIG.enabled || !DEBUG_CONFIG.areas[area]) return;
-                console.timeEnd(`[${area.toUpperCase()}] ${label}`);
-            }
+            enabled(area) { return DEBUG_CONFIG.enabled && DEBUG_CONFIG.areas[area]; },
+            log(area, msg, data) { this.enabled(area) && console.log(`[${area.toUpperCase()}] ${msg}`, data || ''); },
+            group(area, title) { this.enabled(area) && console.group(`[${area.toUpperCase()}] ${title}`); },
+            groupEnd(area) { this.enabled(area) && console.groupEnd(); },
+            table(area, data) { this.enabled(area) && console.table(data); },
+            time(area, label) { this.enabled(area) && console.time(`[${area}] ${label}`); },
+            timeEnd(area, label) { this.enabled(area) && console.timeEnd(`[${area}] ${label}`); }
         };
 
         // View control buttons
@@ -581,19 +528,13 @@
             const searchPrevBtn = document.getElementById(`searchPrev${panelNum}`);
             const searchNextBtn = document.getElementById(`searchNext${panelNum}`);
 
-            let fontAdjustment = 0;
-            let pdfPages = [];
-            let currentPage = 0;
-            let searchMatches = [];
-            let currentMatchIndex = -1;
-            let lastSearchTerm = ''; // Track last search term
-            let isLoadingPagesForSearch = false; // Prevent multiple page loads during search navigation
-            let skipSearchOnPageChange = false; // Skip re-search when navigating from search results
+            let fontAdjustment = 0, pdfPages = [], currentPage = 0;
+            let searchMatches = [], currentMatchIndex = -1, lastSearchTerm = '';
+            let skipSearchOnPageChange = false;
+            let pageTextIndex = [], isIndexing = false, indexingComplete = false;
+            let rawPageData = [], pdfDocument = null, documentType = null, isNavigating = false;
 
-            // Search index database
-            let pageTextIndex = []; // Array of {pageIndex, text} for each page
-            let isIndexing = false; // Flag to track background indexing
-            let indexingComplete = false; // Flag to track if indexing is done            // Page navigation handlers
+            // Page navigation handlers
             firstPageBtn.addEventListener('click', () => goToPage(0));
             prevPageBtn.addEventListener('click', () => goToPage(currentPage - 1));
             nextPageBtn.addEventListener('click', () => goToPage(currentPage + 1));
@@ -647,39 +588,23 @@
             function updatePageNav() {
                 if (pdfPages.length === 0) return;
                 pageSelect.value = currentPage;
-                firstPageBtn.disabled = currentPage === 0;
-                prevPageBtn.disabled = currentPage === 0;
-                nextPageBtn.disabled = currentPage === pdfPages.length - 1;
-                lastPageBtn.disabled = currentPage === pdfPages.length - 1;
+                const isFirst = currentPage === 0, isLast = currentPage === pdfPages.length - 1;
+                firstPageBtn.disabled = prevPageBtn.disabled = isFirst;
+                nextPageBtn.disabled = lastPageBtn.disabled = isLast;
             }
 
             // Search handlers
-            searchInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    performSearch();
-                }
-            });
-            searchPrevBtn.addEventListener('click', async () => {
-                const currentTerm = searchInput.value.trim();
-                if (currentTerm.length === 0) return;
+            searchInput.addEventListener('keydown', (e) => e.key === 'Enter' && (e.preventDefault(), performSearch()));
 
-                // Only perform full search if term changed
-                if (currentTerm !== lastSearchTerm) {
-                    await performSearch();
-                }
-                navigateMatch(-1);
-            });
-            searchNextBtn.addEventListener('click', async () => {
+            const handleSearchNav = async (direction) => {
                 const currentTerm = searchInput.value.trim();
-                if (currentTerm.length === 0) return;
+                if (!currentTerm) return;
+                if (currentTerm !== lastSearchTerm) await performSearch();
+                navigateMatch(direction);
+            };
 
-                // Only perform full search if term changed
-                if (currentTerm !== lastSearchTerm) {
-                    await performSearch();
-                }
-                navigateMatch(1);
-            });
+            searchPrevBtn.addEventListener('click', () => handleSearchNav(-1));
+            searchNextBtn.addEventListener('click', () => handleSearchNav(1));
 
             async function performSearch() {
                 const searchTerm = searchInput.value.trim();
@@ -712,66 +637,48 @@
 
                 if (searchTerm.length === 0) {
                     lastSearchTerm = '';
-                    // If search cleared and was lazy loaded, go back to lazy rendering
-                    if (wasLazyLoaded) {
-                        await renderVisiblePages();
-                    }
                     return;
                 }
 
-                // Escape regex special characters
                 const escapedTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                 const regex = new RegExp(escapedTerm, 'gi');
 
                 // Find and highlight all matches
-                const walker = document.createTreeWalker(
-                    docContent,
-                    NodeFilter.SHOW_TEXT,
-                    null,
-                    false
-                );
-
+                const walker = document.createTreeWalker(docContent, NodeFilter.SHOW_TEXT);
                 const nodesToProcess = [];
                 let node;
                 while (node = walker.nextNode()) {
-                    const text = node.textContent;
                     const matches = [];
                     let match;
                     regex.lastIndex = 0;
-                    while ((match = regex.exec(text)) !== null) {
+                    while ((match = regex.exec(node.textContent)) !== null) {
                         matches.push({ index: match.index, length: searchTerm.length });
                     }
-                    if (matches.length > 0) {
-                        nodesToProcess.push({ node, matches });
-                    }
+                    if (matches.length > 0) nodesToProcess.push({ node, matches });
                 }
 
-                // Apply highlights (process in reverse to maintain indices)
+                // Apply highlights
                 nodesToProcess.forEach(({ node, matches }) => {
                     const parent = node.parentNode;
                     if (!parent) return;
 
-                    const text = node.textContent;
                     const fragments = [];
                     let lastIndex = 0;
 
                     matches.forEach(({ index, length }) => {
-                        // Add text before match
                         if (index > lastIndex) {
-                            fragments.push(document.createTextNode(text.substring(lastIndex, index)));
+                            fragments.push(document.createTextNode(node.textContent.substring(lastIndex, index)));
                         }
-                        // Add highlighted match
                         const span = document.createElement('span');
                         span.className = 'highlight';
-                        span.textContent = text.substring(index, index + length);
+                        span.textContent = node.textContent.substring(index, index + length);
                         fragments.push(span);
                         searchMatches.push(span);
                         lastIndex = index + length;
                     });
 
-                    // Add remaining text
-                    if (lastIndex < text.length) {
-                        fragments.push(document.createTextNode(text.substring(lastIndex)));
+                    if (lastIndex < node.textContent.length) {
+                        fragments.push(document.createTextNode(node.textContent.substring(lastIndex)));
                     }
 
                     // Replace node with fragments
@@ -817,38 +724,20 @@
                     scrollToMatch();
                 }
 
-                // Update search info display
-                updateSearchInfo();
             }
 
-            function updateSearchInfo() {
-                // Optional: Display search results count
-                if (searchMatches.length > 0) {
-                    console.log(`Found ${searchMatches.length} matches in loaded pages (match ${currentMatchIndex + 1})`);
-                }
-            }
-
-            // Load pages around a specific page index for search navigation
             async function ensurePageLoaded(pageIndex) {
-                if (pageIndex < 0 || pageIndex >= rawPageData.length) return false;
-
-                if (documentType === 'pdf' && pdfDocument && rawPageData[pageIndex] === null) {
-                    Logger.log('performance', `Panel ${panelNum} - Loading page ${pageIndex + 1} for search navigation`);
+                if (pageIndex < 0 || pageIndex >= rawPageData.length || !pdfDocument) return;
+                if (documentType === 'pdf' && rawPageData[pageIndex] === null) {
+                    Logger.log('performance', `Panel ${panelNum} - Loading page ${pageIndex + 1}`);
                     rawPageData[pageIndex] = await convertPDFPage(pdfDocument, pageIndex + 1);
-
-                    // Re-render visible range to include this page
                     await renderVisiblePages();
-
-                    // Re-run search to include newly loaded page
                     const searchTerm = searchInput.value.trim();
                     if (searchTerm.length > 0) {
-                        lastSearchTerm = ''; // Force re-search
+                        lastSearchTerm = '';
                         await performSearch();
                     }
-
-                    return true;
                 }
-                return false;
             }
 
             function getPageForElement(element) {
@@ -984,13 +873,6 @@
             async function navigateMatch(direction) {
                 if (searchMatches.length === 0) return;
 
-                // Prevent multiple simultaneous page loads during search
-                if (isLoadingPagesForSearch) {
-                    Logger.log('performance', `Panel ${panelNum} - Search navigation blocked: already loading pages`);
-                    return;
-                }
-
-                // Calculate next match index
                 let nextIndex = currentMatchIndex + direction;
 
                 // Check if we can navigate within currently loaded pages
@@ -1016,9 +898,6 @@
                     const targetPage = await searchInIndex(searchTerm, direction);
 
                     if (targetPage !== null && targetPage !== currentPage) {
-                        // Found a page with matches, navigate to it
-                        isLoadingPagesForSearch = true;
-
                         try {
                             Logger.log('performance', `Panel ${panelNum} - Navigating to page ${targetPage + 1} with matches`);
 
@@ -1060,10 +939,7 @@
                                         currentMatchIndex = searchMatches.indexOf(matchesInPage[matchesInPage.length - 1]);
                                     }
 
-                                    // Clear flag before scrolling since we're done
-                                    isLoadingPagesForSearch = false;
                                     skipSearchOnPageChange = false;
-
                                     scrollToMatch();
                                     return;
                                 } else {
@@ -1071,8 +947,6 @@
                                 }
                             }
                         } finally {
-                            // Always clear flags
-                            isLoadingPagesForSearch = false;
                             skipSearchOnPageChange = false;
                         }
                     } else {
@@ -1124,27 +998,15 @@
                 if (file) handleFile(file, content, fontAdjustment, panelNum);
             });
 
-            increaseBtn.addEventListener('click', () => {
-                fontAdjustment++;
+            const updateFont = (delta) => {
+                fontAdjustment += delta;
                 fontDisplay.textContent = fontAdjustment >= 0 ? `+${fontAdjustment}` : fontAdjustment;
-
-                // Trigger re-render of visible pages with new font size
                 const panelApi = window[`panel${panelNum}Api`];
-                if (panelApi && panelApi.rerenderVisiblePages) {
-                    panelApi.rerenderVisiblePages();
-                }
-            });
+                panelApi?.rerenderVisiblePages?.();
+            };
 
-            decreaseBtn.addEventListener('click', () => {
-                fontAdjustment--;
-                fontDisplay.textContent = fontAdjustment >= 0 ? `+${fontAdjustment}` : fontAdjustment;
-
-                // Trigger re-render of visible pages with new font size
-                const panelApi = window[`panel${panelNum}Api`];
-                if (panelApi && panelApi.rerenderVisiblePages) {
-                    panelApi.rerenderVisiblePages();
-                }
-            });
+            increaseBtn.addEventListener('click', () => updateFont(1));
+            decreaseBtn.addEventListener('click', () => updateFont(-1));
 
             clearBtn.addEventListener('click', () => {
                 content.innerHTML = '<div>No document loaded</div>';
@@ -1155,78 +1017,39 @@
                 pdfPages = [];
                 currentPage = 0;
                 pageNav.style.display = 'none';
-
-                // Clear the panel API reference
-                const panelApi = window[`panel${panelNum}Api`];
-                if (panelApi) {
-                    panelApi.setContent('');
-                }
+                window[`panel${panelNum}Api`]?.setContent?.('');
             });
 
-            // Store raw page data (not yet rendered with font adjustments)
-            let rawPageData = [];
-
-            // Store PDF document for lazy loading
-            let pdfDocument = null;
-            let documentType = null; // 'pdf' or 'word'
-            let isNavigating = false; // Flag to prevent observer interference during navigation
-
-            // Observe page visibility and render on-demand
             let pageObserver = null;
             let renderTimeout = null;
 
             function setupPageObserver() {
-                if (pageObserver) {
-                    pageObserver.disconnect();
-                }
-
+                pageObserver?.disconnect();
                 pageObserver = new IntersectionObserver((entries) => {
                     entries.forEach(entry => {
-                        if (entry.isIntersecting) {
-                            const pageElement = entry.target;
-                            const pageIndex = parseInt(pageElement.dataset.pageIndex);
+                        if (!entry.isIntersecting) return;
+                        const pageElement = entry.target;
+                        const pageIndex = parseInt(pageElement.dataset.pageIndex);
 
-                            // Update current page only if not programmatically navigating
-                            if (!isNavigating && pageIndex !== currentPage) {
-                                currentPage = pageIndex;
-                                updatePageNav();
-                            }
+                        if (!isNavigating && pageIndex !== currentPage) {
+                            currentPage = pageIndex;
+                            updatePageNav();
+                        }
 
-                            // If this is a placeholder, trigger re-render with debounce
-                            if (pageElement.classList.contains('pdf-page-placeholder')) {
-                                Logger.log('performance', `Panel ${panelNum} - User scrolled to page ${pageIndex}, scheduling re-render`);
-
-                                // Debounce rendering to avoid continuous re-renders during scroll
-                                if (renderTimeout) clearTimeout(renderTimeout);
-                                renderTimeout = setTimeout(() => {
-                                    renderVisiblePages();
-                                }, 200);
-                            }
+                        if (pageElement.classList.contains('pdf-page-placeholder')) {
+                            clearTimeout(renderTimeout);
+                            renderTimeout = setTimeout(() => renderVisiblePages(), 200);
                         }
                     });
-                }, {
-                    root: content,
-                    rootMargin: '50px', // Start loading slightly before page is visible
-                    threshold: 0.1
-                });
+                }, { root: content, rootMargin: '50px', threshold: 0.1 });
 
-                // Observe all page elements
-                content.querySelectorAll('.pdf-page').forEach(page => {
-                    pageObserver.observe(page);
-                });
+                content.querySelectorAll('.pdf-page').forEach(page => pageObserver.observe(page));
             }
 
-            // Apply font adjustment to a single page's HTML
-            function applyFontToPageHtml(pageHtml, adjustment) {
-                if (adjustment === 0) return pageHtml;
-
-                // Use regex to find and adjust all font-size values in inline styles
-                return pageHtml.replace(/font-size:\s*(\d+(?:\.\d+)?)px/g, (match, size) => {
-                    const originalSize = parseFloat(size);
-                    const newSize = Math.max(6, originalSize + adjustment);
-                    return `font-size: ${newSize}px`;
-                });
-            }
+            // Apply font adjustment to HTML
+            const applyFontToPageHtml = (pageHtml, adjustment) => adjustment === 0 ? pageHtml :
+                pageHtml.replace(/font-size:\s*(\d+(?:\.\d+)?)px/g, (_, size) =>
+                    `font-size: ${Math.max(6, parseFloat(size) + adjustment)}px`);
 
             // Modified renderVisiblePages to handle lazy loading
             async function renderVisiblePages() {
@@ -1242,7 +1065,6 @@
                 if (documentType === 'pdf' && pdfDocument) {
                     for (let i = startPage; i <= endPage; i++) {
                         if (rawPageData[i] === null) {
-                            Logger.log('performance', `Panel ${panelNum} - Loading page ${i + 1} from PDF`);
                             rawPageData[i] = await convertPDFPage(pdfDocument, i + 1);
                         }
                     }
@@ -1270,15 +1092,12 @@
 
                 setupPageObserver();
 
-                // Re-apply search highlights if there's an active search
+                // Re-apply search highlights if active
                 const searchTerm = searchInput.value.trim();
                 if (searchTerm.length > 0 && lastSearchTerm === searchTerm) {
-                    // Force re-search to restore highlights
                     const savedMatchIndex = currentMatchIndex;
                     lastSearchTerm = '';
                     await performSearch();
-
-                    // Restore the current match index and apply highlighting
                     if (savedMatchIndex >= 0 && savedMatchIndex < searchMatches.length) {
                         currentMatchIndex = savedMatchIndex;
                         scrollToMatch();
@@ -1286,94 +1105,41 @@
                 }
             }
 
-            // Render all pages for search functionality
-            async function renderAllPagesForSearch() {
-                if (rawPageData.length === 0) return;
-
-                Logger.log('performance', `Panel ${panelNum} - Rendering all ${rawPageData.length} pages for search`);
-
-                let allPagesHtml = '<div class="document-content">';
-
-                for (let i = 0; i < rawPageData.length; i++) {
-                    if (rawPageData[i] !== null) {
-                        const renderedPage = applyFontToPageHtml(rawPageData[i], fontAdjustment);
-                        allPagesHtml += `<div id="page${panelNum}-${i}" class="pdf-page" data-page-index="${i}" style="margin-bottom: 2em;">${renderedPage}</div>`;
-                    }
-                }
-
-                allPagesHtml += '</div>';
-                content.innerHTML = allPagesHtml;
-
-                setupPageObserver();
-            }
-
             // Return API for external access
             return {
                 setPDFDocument: async (pdfDoc, numPages) => {
                     pdfDocument = pdfDoc;
                     documentType = 'pdf';
-                    pdfPages = new Array(numPages).fill(null); // Placeholder array
-                    rawPageData = new Array(numPages).fill(null); // Will be loaded on-demand
+                    pdfPages = rawPageData = new Array(numPages).fill(null);
                     currentPage = 0;
-
-                    // Reset search index
                     pageTextIndex = [];
-                    indexingComplete = false;
-                    isIndexing = false;
+                    indexingComplete = isIndexing = false;
 
-                    // Setup page selector
-                    pageSelect.innerHTML = '';
-                    for (let i = 0; i < numPages; i++) {
-                        const option = document.createElement('option');
-                        option.value = i;
-                        option.textContent = `Page ${i + 1}`;
-                        pageSelect.appendChild(option);
-                    }
+                    pageSelect.innerHTML = Array.from({length: numPages}, (_, i) =>
+                        `<option value="${i}">Page ${i + 1}</option>`).join('');
 
                     pageNav.style.display = 'flex';
                     updatePageNav();
-
-                    // Render only visible pages
                     await renderVisiblePages();
-
-                    // Start background indexing after initial render
-                    setTimeout(() => {
-                        buildSearchIndex();
-                    }, 100);
+                    setTimeout(() => buildSearchIndex(), 100);
                 },
                 setAllPages: (pages, fullHtml) => {
-                    rawPageData = pages; // Store raw, unadjusted HTML
-                    pdfPages = pages;
+                    rawPageData = pdfPages = pages;
                     documentType = 'word';
                     currentPage = 0;
-
-                    // Setup page selector
-                    pageSelect.innerHTML = '';
-                    pages.forEach((_, i) => {
-                        const option = document.createElement('option');
-                        option.value = i;
-                        option.textContent = `Page ${i + 1}`;
-                        pageSelect.appendChild(option);
-                    });
-
+                    pageSelect.innerHTML = Array.from({length: pages.length}, (_, i) =>
+                        `<option value="${i}">Page ${i + 1}</option>`).join('');
                     pageNav.style.display = 'flex';
                     updatePageNav();
-
-                    // Render only visible pages
                     renderVisiblePages();
                 },
                 setContent: (html) => {
                     content.innerHTML = `<div class="document-content">${html}</div>`;
                     pageNav.style.display = 'none';
-                    pdfPages = [];
-                    rawPageData = [];
-                    pdfDocument = null;
-                    documentType = null;
+                    pdfPages = rawPageData = [];
+                    pdfDocument = documentType = null;
                 },
-                // Expose render function for font changes
-                rerenderVisiblePages: async () => {
-                    await renderVisiblePages();
-                }
+                rerenderVisiblePages: () => renderVisiblePages()
             };
         }
 
@@ -1384,50 +1150,25 @@
             contentDiv.innerHTML = '<div class="loading">⏳ Converting document...</div>';
 
             try {
+                const panelApi = window[`panel${panelNum}Api`];
                 if (fileName.endsWith('.pdf')) {
                     const result = await convertPDF(file);
-                    const panelApi = window[`panel${panelNum}Api`];
-
-                    if (result.isLazyLoad) {
-                        // Lazy load PDF
-                        await panelApi.setPDFDocument(result.pdfDoc, result.numPages);
-                    } else {
-                        // Fallback for older format
-                        panelApi.setAllPages(result.pages, result.html);
-                    }
+                    await panelApi.setPDFDocument(result.pdfDoc, result.numPages);
                 } else if (fileName.endsWith('.docx') || fileName.endsWith('.doc')) {
                     const result = await convertWord(file);
-                    const panelApi = window[`panel${panelNum}Api`];
                     panelApi.setAllPages(result.pages, result.html);
                 } else {
                     throw new Error('Unsupported file format');
                 }
-
-                // Font adjustment is now handled automatically during rendering
             } catch (error) {
                 contentDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
             }
-        }        // Font adjustment is now handled within setupPanel's applyFontToPageHtml function
+        }
 
         async function convertPDF(file) {
             Logger.time('performance', 'PDF Conversion');
-            Logger.log('performance', `Starting PDF conversion: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
-
-            const arrayBuffer = await file.arrayBuffer();
-            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-
-            Logger.log('performance', `PDF loaded: ${pdf.numPages} pages - preparing lazy loading structure`);
-
-            // Store PDF document and metadata for lazy loading
-            const pdfDoc = pdf;
-            const numPages = pdf.numPages;
-
-            // Return lazy-loadable structure instead of processing all pages
-            return {
-                pdfDoc: pdfDoc,
-                numPages: numPages,
-                isLazyLoad: true
-            };
+            const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+            return { pdfDoc: pdf, numPages: pdf.numPages, isLazyLoad: true };
         }
 
         async function convertPDFPage(pdfDoc, pageNumber) {
@@ -2244,69 +1985,34 @@
 
         async function convertWord(file) {
             Logger.time('performance', 'Word Document Conversion');
-            Logger.log('performance', `Starting Word conversion: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
-
-            const arrayBuffer = await file.arrayBuffer();
-            const result = await mammoth.convertToHtml({ arrayBuffer });
+            const result = await mammoth.convertToHtml({ arrayBuffer: await file.arrayBuffer() });
             const htmlContent = result.value || '<p>No content found in document</p>';
-
-            Logger.log('wordPaging', `Word document converted to HTML (${htmlContent.length} characters)`);
-
-            // Split content into pages (approximate page breaks)
-            Logger.time('wordPaging', 'Page splitting');
             const pages = splitHtmlIntoPages(htmlContent);
-            Logger.timeEnd('wordPaging', 'Page splitting');
-
-            Logger.log('wordPaging', `Word document split into ${pages.length} pages`);
             Logger.timeEnd('performance', 'Word Document Conversion');
-
             return { pages, html: htmlContent };
         }
 
         function splitHtmlIntoPages(html) {
-            Logger.log('wordPaging', 'Starting HTML page splitting...');
-
-            // Create a temporary div to parse the HTML
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = html;
             tempDiv.style.cssText = 'position: absolute; visibility: hidden; width: 800px; line-height: 1.6;';
             document.body.appendChild(tempDiv);
 
-            const pages = [];
-            let currentPage = '';
-            let currentHeight = 0;
-            const maxPageHeight = 1056; // Approximate A4 height in pixels (11 inches * 96 dpi)
-            const pageMargin = 100;
-            let pageNumber = 1;
+            const pages = [], maxPageHeight = 1056;
+            let currentPage = '', currentHeight = 0, pageNumber = 1;
 
-            const children = Array.from(tempDiv.children);
-
-            Logger.log('wordPaging', `Processing ${children.length} HTML elements`);
-
-            children.forEach((element, idx) => {
-                const clone = element.cloneNode(true);
+            Array.from(tempDiv.children).forEach(element => {
                 const testDiv = document.createElement('div');
-                testDiv.style.cssText = 'position: absolute; visibility: hidden; width: 800px; line-height: 1.6;';
-                testDiv.appendChild(clone);
+                testDiv.style.cssText = tempDiv.style.cssText;
+                testDiv.appendChild(element.cloneNode(true));
                 document.body.appendChild(testDiv);
-
                 const elementHeight = testDiv.offsetHeight;
                 document.body.removeChild(testDiv);
 
-                // Check if adding this element would exceed page height
                 if (currentHeight + elementHeight > maxPageHeight && currentPage.length > 0) {
-                    // Save current page with page header
-                    Logger.log('wordPaging', `Page ${pageNumber} complete:`, {
-                        elements: currentPage.split('<').length - 1,
-                        height: currentHeight,
-                        maxHeight: maxPageHeight
-                    });
-
-                    const pageWithHeader = `<div style="margin-bottom: 2em;">
+                    pages.push(`<div style="margin-bottom: 2em;">
                         <div style="font-size: 10px; color: #999; margin-bottom: 1em; border-bottom: 1px solid #ddd; padding-bottom: 0.5em;">Page ${pageNumber}</div>
-                        ${currentPage}
-                    </div>`;
-                    pages.push(pageWithHeader);
+                        ${currentPage}</div>`);
                     currentPage = '';
                     currentHeight = 0;
                     pageNumber++;
@@ -2316,24 +2022,13 @@
                 currentHeight += elementHeight;
             });
 
-            // Add the last page with page header
             if (currentPage.length > 0) {
-                Logger.log('wordPaging', `Page ${pageNumber} (final) complete:`, {
-                    elements: currentPage.split('<').length - 1,
-                    height: currentHeight
-                });
-
-                const pageWithHeader = `<div style="margin-bottom: 2em;">
+                pages.push(`<div style="margin-bottom: 2em;">
                     <div style="font-size: 10px; color: #999; margin-bottom: 1em; border-bottom: 1px solid #ddd; padding-bottom: 0.5em;">Page ${pageNumber}</div>
-                    ${currentPage}
-                </div>`;
-                pages.push(pageWithHeader);
+                    ${currentPage}</div>`);
             }
 
             document.body.removeChild(tempDiv);
-
-            Logger.log('wordPaging', `Total pages created: ${pages.length}`);
-
             return pages.length > 0 ? pages : [html];
         }
 
